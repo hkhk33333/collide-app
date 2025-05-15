@@ -10,8 +10,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -19,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,11 +43,18 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.test.testing.ui.theme.TestingTheme
+import com.test.testing.api.FirebaseLocationRepository
+import com.test.testing.api.LocationModel
+import android.widget.Toast
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var currentLocation by mutableStateOf<Location?>(null)
+    private val locationRepository = FirebaseLocationRepository()
+    private val userId = "user_${System.currentTimeMillis()}" // Generate a unique ID for testing
+    private var allLocations by mutableStateOf<Map<String, LocationModel>>(emptyMap())
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -67,7 +78,9 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MapScreen(
                         currentLocation = currentLocation,
-                        onMyLocationClick = { startLocationUpdates() }
+                        allLocations = allLocations,
+                        onMyLocationClick = { startLocationUpdates() },
+                        onRefreshClick = { fetchAllLocations() }
                     )
                 }
             }
@@ -105,6 +118,7 @@ class MainActivity : ComponentActivity() {
             fusedLocationClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
                     currentLocation = location
+                    sendLocationToServer(location)
                 }
             }
             
@@ -117,6 +131,7 @@ class MainActivity : ComponentActivity() {
                 override fun onLocationResult(locationResult: LocationResult) {
                     for (loc in locationResult.locations) {
                         currentLocation = loc
+                        sendLocationToServer(loc)
                     }
                 }
             }
@@ -128,6 +143,26 @@ class MainActivity : ComponentActivity() {
             )
         } catch (e: SecurityException) {
             // Handle permission issue
+        }
+    }
+    
+    private fun sendLocationToServer(location: Location) {
+        Log.d("MainActivity", "Sending location to server: lat=${location.latitude}, lng=${location.longitude}, userId=$userId")
+        locationRepository.sendLocationUpdate(location, userId) { success, message ->
+            Log.d("MainActivity", "Location update result: success=$success, message=$message")
+            if (success) {
+                fetchAllLocations() // Fetch all locations after successfully updating our location
+            } else {
+                runOnUiThread {
+                    Toast.makeText(this, "Location update failed: $message", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    
+    private fun fetchAllLocations() {
+        locationRepository.getAllLocations { locations ->
+            allLocations = locations
         }
     }
     
@@ -149,7 +184,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MapScreen(
     currentLocation: Location?,
-    onMyLocationClick: () -> Unit
+    allLocations: Map<String, LocationModel>,
+    onMyLocationClick: () -> Unit,
+    onRefreshClick: () -> Unit
 ) {
     val singapore = LatLng(1.35, 103.87)
     val tokyo = LatLng(35.6762, 139.6503)
@@ -179,41 +216,52 @@ fun MapScreen(
                 isMyLocationEnabled = currentLocation != null
             )
         ) {
+            // Show marker at Singapore (reference point)
             Marker(
                 state = MarkerState(position = singapore),
                 title = "Singapore",
                 snippet = "Marker in Singapore"
             )
             
-            // Show marker at current location if available
-            currentLocation?.let {
-                val position = LatLng(it.latitude, it.longitude)
+            // Show markers for all users from Firebase
+            allLocations.forEach { (userId, locationData) ->
+                val position = LatLng(locationData.latitude, locationData.longitude)
                 Marker(
                     state = MarkerState(position = position),
-                    title = "My Location",
-                    snippet = "You are here"
+                    title = "User: $userId",
+                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}"
                 )
             }
         }
         
-        Button(
-            onClick = {
-                cameraPositionState.position = CameraPosition.fromLatLngZoom(tokyo, 10f)
-            },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-        ) {
-            Text("Go to Tokyo")
-        }
-        
-        Button(
-            onClick = onMyLocationClick,
+        // Button layout at the bottom of the screen
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
         ) {
-            Text("My Location")
+            Button(
+                onClick = { onRefreshClick() },
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                Text("Refresh Locations")
+            }
+            
+            Button(
+                onClick = { 
+                    cameraPositionState.position = CameraPosition.fromLatLngZoom(tokyo, 10f)
+                }
+            ) {
+                Text("Go to Tokyo")
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Button(
+                onClick = onMyLocationClick
+            ) {
+                Text("My Location")
+            }
         }
     }
 }
@@ -222,6 +270,6 @@ fun MapScreen(
 @Composable
 fun MapScreenPreview() {
     TestingTheme {
-        MapScreen(currentLocation = null, onMyLocationClick = {})
+        MapScreen(currentLocation = null, allLocations = emptyMap(), onMyLocationClick = {}, onRefreshClick = {})
     }
 } 
