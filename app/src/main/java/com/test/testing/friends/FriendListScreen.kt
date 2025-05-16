@@ -47,6 +47,7 @@ import java.util.Locale
 fun FriendListScreen(
     friendRepository: FriendRepository,
     onNavigateToAddFriend: () -> Unit,
+    onNavigateToFriendLocation: (String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -209,7 +210,10 @@ fun FriendListScreen(
                             .fillMaxWidth()
                     ) {
                         items(acceptedFriends) { friend ->
-                            FriendItem(friend = friend)
+                            FriendItem(
+                                friend = friend, 
+                                onLocationClick = { onNavigateToFriendLocation(friend.userId) }
+                            )
                             Divider()
                         }
                     }
@@ -266,7 +270,10 @@ fun FriendRequestItem(
 }
 
 @Composable
-fun FriendItem(friend: FriendshipModel) {
+fun FriendItem(
+    friend: FriendshipModel,
+    onLocationClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -287,6 +294,13 @@ fun FriendItem(friend: FriendshipModel) {
                 text = "Friends since: ${formatDate(friend.updatedAt)}",
                 style = MaterialTheme.typography.bodySmall
             )
+        }
+        
+        Button(
+            onClick = onLocationClick,
+            modifier = Modifier.padding(end = 4.dp)
+        ) {
+            Text("View Location")
         }
     }
 }
