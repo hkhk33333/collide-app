@@ -5,16 +5,17 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
 import android.os.Looper
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,9 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -42,19 +43,24 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.test.testing.ui.theme.TestingTheme
 import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
+import com.test.testing.auth.AuthNavigation
+import com.test.testing.auth.AuthViewModel
+import com.test.testing.ui.theme.TestingTheme
 import android.widget.Toast
-import android.util.Log
+import com.test.testing.friends.AddFriendScreen
+import com.test.testing.friends.FriendListScreen
+import com.test.testing.friends.FriendRepository
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var currentLocation by mutableStateOf<Location?>(null)
     private val locationRepository = FirebaseLocationRepository()
-    private val userId = "user_${System.currentTimeMillis()}" // Generate a unique ID for testing
+    private val friendRepository = FriendRepository()
     private var allLocations by mutableStateOf<Map<String, LocationModel>>(emptyMap())
+    private var currentScreen by mutableStateOf<Screen>(Screen.MAP)
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -70,18 +76,47 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        checkLocationPermissions()
         
         enableEdgeToEdge()
         setContent {
+            val authViewModel: AuthViewModel = viewModel()
+            
             TestingTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MapScreen(
-                        currentLocation = currentLocation,
-                        allLocations = allLocations,
-                        onMyLocationClick = { startLocationUpdates() },
-                        onRefreshClick = { fetchAllLocations() }
-                    )
+                AuthNavigation(
+                    authViewModel = authViewModel,
+                    onAuthenticated = { 
+                        // Once authenticated, request location permissions
+                        checkLocationPermissions()
+                    }
+                ) {
+                    // Main app content when authenticated
+                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                        when (currentScreen) {
+                            Screen.MAP -> {
+                                MapScreen(
+                                    currentLocation = currentLocation,
+                                    allLocations = allLocations,
+                                    onMyLocationClick = { startLocationUpdates() },
+                                    onRefreshClick = { fetchAllLocations() },
+                                    onSignOut = { authViewModel.signOut() },
+                                    onNavigateToFriends = { currentScreen = Screen.FRIENDS }
+                                )
+                            }
+                            Screen.FRIENDS -> {
+                                FriendListScreen(
+                                    friendRepository = friendRepository,
+                                    onNavigateToAddFriend = { currentScreen = Screen.ADD_FRIEND },
+                                    onNavigateBack = { currentScreen = Screen.MAP }
+                                )
+                            }
+                            Screen.ADD_FRIEND -> {
+                                AddFriendScreen(
+                                    friendRepository = friendRepository,
+                                    onNavigateBack = { currentScreen = Screen.FRIENDS }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -147,8 +182,8 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun sendLocationToServer(location: Location) {
-        Log.d("MainActivity", "Sending location to server: lat=${location.latitude}, lng=${location.longitude}, userId=$userId")
-        locationRepository.sendLocationUpdate(location, userId) { success, message ->
+        Log.d("MainActivity", "Sending location to server: lat=${location.latitude}, lng=${location.longitude}")
+        locationRepository.sendLocationUpdate(location) { success, message ->
             Log.d("MainActivity", "Location update result: success=$success, message=$message")
             if (success) {
                 fetchAllLocations() // Fetch all locations after successfully updating our location
@@ -162,7 +197,23 @@ class MainActivity : ComponentActivity() {
     
     private fun fetchAllLocations() {
         locationRepository.getAllLocations { locations ->
-            allLocations = locations
+            // Filter to only show friends if we have any
+            friendRepository.getFriendships { friendships ->
+                val acceptedFriends = friendships.filter { it.status == com.test.testing.friends.FriendshipStatus.ACCEPTED }
+                    .map { it.userId }
+                    .toSet()
+                
+                // If we have friends, only show their locations and our own
+                if (acceptedFriends.isNotEmpty()) {
+                    val currentUserId = friendRepository.getCurrentUserId()
+                    allLocations = locations.filter { (userId, _) -> 
+                        userId == currentUserId || acceptedFriends.contains(userId)
+                    }
+                } else {
+                    // If no friends, show all locations
+                    allLocations = locations
+                }
+            }
         }
     }
     
@@ -186,7 +237,9 @@ fun MapScreen(
     currentLocation: Location?,
     allLocations: Map<String, LocationModel>,
     onMyLocationClick: () -> Unit,
-    onRefreshClick: () -> Unit
+    onRefreshClick: () -> Unit,
+    onSignOut: () -> Unit,
+    onNavigateToFriends: () -> Unit
 ) {
     val singapore = LatLng(1.35, 103.87)
     val tokyo = LatLng(35.6762, 139.6503)
@@ -201,7 +254,7 @@ fun MapScreen(
     }
     
     // Force camera update when location changes
-    androidx.compose.runtime.LaunchedEffect(currentLocation) {
+    LaunchedEffect(currentLocation) {
         currentLocation?.let {
             val position = LatLng(it.latitude, it.longitude)
             cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
@@ -216,19 +269,12 @@ fun MapScreen(
                 isMyLocationEnabled = currentLocation != null
             )
         ) {
-            // Show marker at Singapore (reference point)
-            Marker(
-                state = MarkerState(position = singapore),
-                title = "Singapore",
-                snippet = "Marker in Singapore"
-            )
-            
             // Show markers for all users from Firebase
             allLocations.forEach { (userId, locationData) ->
                 val position = LatLng(locationData.latitude, locationData.longitude)
                 Marker(
                     state = MarkerState(position = position),
-                    title = "User: $userId",
+                    title = locationData.displayName,
                     snippet = "Last updated: ${java.util.Date(locationData.timestamp)}"
                 )
             }
@@ -250,26 +296,50 @@ fun MapScreen(
             Button(
                 onClick = { 
                     cameraPositionState.position = CameraPosition.fromLatLngZoom(tokyo, 10f)
-                }
+                },
+                modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 Text("Go to Tokyo")
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
             Button(
-                onClick = onMyLocationClick
+                onClick = onMyLocationClick,
+                modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 Text("My Location")
+            }
+            
+            Button(
+                onClick = onSignOut
+            ) {
+                Text("Sign Out")
+            }
+            
+            Button(
+                onClick = onNavigateToFriends
+            ) {
+                Text("Friends")
             }
         }
     }
 }
 
-@Preview(showBackground = true)
 @Composable
 fun MapScreenPreview() {
     TestingTheme {
-        MapScreen(currentLocation = null, allLocations = emptyMap(), onMyLocationClick = {}, onRefreshClick = {})
+        MapScreen(
+            currentLocation = null, 
+            allLocations = emptyMap(), 
+            onMyLocationClick = {}, 
+            onRefreshClick = {},
+            onSignOut = {},
+            onNavigateToFriends = {}
+        )
     }
+}
+
+enum class Screen {
+    MAP,
+    FRIENDS,
+    ADD_FRIEND
 } 

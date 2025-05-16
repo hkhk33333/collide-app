@@ -60,6 +60,10 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.8.0"))
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
+
+    // Lifecycle and ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
