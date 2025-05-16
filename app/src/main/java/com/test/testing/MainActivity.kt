@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
     private val friendRepository = FriendRepository()
     private var allLocations by mutableStateOf<Map<String, LocationModel>>(emptyMap())
     private var currentScreen by mutableStateOf<Screen>(Screen.MAP)
-    private var selectedFriendId by mutableStateOf<String?>(null)
+    private var friendToFocus by mutableStateOf<String?>(null)
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -99,26 +99,28 @@ class MainActivity : ComponentActivity() {
                                 MapScreen(
                                     currentLocation = currentLocation,
                                     allLocations = allLocations,
-                                    selectedFriendId = selectedFriendId,
                                     onMyLocationClick = { 
-                                        // Reset selected friend and focus on user's location
-                                        selectedFriendId = null
-                                        startLocationUpdates() 
+                                        startLocationUpdates()
+                                        friendToFocus = null
                                     },
                                     onRefreshClick = { fetchAllLocations() },
                                     onSignOut = { authViewModel.signOut() },
-                                    onNavigateToFriends = { currentScreen = Screen.FRIENDS }
+                                    onNavigateToFriends = { currentScreen = Screen.FRIENDS },
+                                    friendToFocus = friendToFocus
                                 )
                             }
                             Screen.FRIENDS -> {
                                 FriendListScreen(
                                     friendRepository = friendRepository,
                                     onNavigateToAddFriend = { currentScreen = Screen.ADD_FRIEND },
-                                    onNavigateToFriendLocation = { friendId ->
-                                        selectedFriendId = friendId
-                                        currentScreen = Screen.MAP
+                                    onNavigateBack = { 
+                                        friendToFocus = null
+                                        currentScreen = Screen.MAP 
                                     },
-                                    onNavigateBack = { currentScreen = Screen.MAP }
+                                    onViewFriendLocation = { userId ->
+                                        friendToFocus = userId
+                                        currentScreen = Screen.MAP
+                                    }
                                 )
                             }
                             Screen.ADD_FRIEND -> {
@@ -248,11 +250,11 @@ class MainActivity : ComponentActivity() {
 fun MapScreen(
     currentLocation: Location?,
     allLocations: Map<String, LocationModel>,
-    selectedFriendId: String?,
     onMyLocationClick: () -> Unit,
     onRefreshClick: () -> Unit,
     onSignOut: () -> Unit,
-    onNavigateToFriends: () -> Unit
+    onNavigateToFriends: () -> Unit,
+    friendToFocus: String? = null
 ) {
     val singapore = LatLng(1.35, 103.87)
     val tokyo = LatLng(35.6762, 139.6503)
@@ -266,21 +268,27 @@ fun MapScreen(
         position = CameraPosition.fromLatLngZoom(initialPosition, 15f)
     }
     
-    // If selectedFriendId is not null, focus on that friend's location
-    LaunchedEffect(selectedFriendId, allLocations) {
-        if (selectedFriendId != null) {
-            allLocations[selectedFriendId]?.let { locationModel ->
-                val friendPosition = LatLng(locationModel.latitude, locationModel.longitude)
-                cameraPositionState.position = CameraPosition.fromLatLngZoom(friendPosition, 15f)
-            }
+    // Force camera update when location changes
+    LaunchedEffect(currentLocation) {
+        currentLocation?.let {
+            val position = LatLng(it.latitude, it.longitude)
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
         }
     }
     
-    // Force camera update when location changes
-    LaunchedEffect(currentLocation) {
-        if (selectedFriendId == null) {
-            currentLocation?.let {
-                val position = LatLng(it.latitude, it.longitude)
+    // Force camera update when location changes or when focusing on a friend
+    LaunchedEffect(currentLocation, friendToFocus) {
+        when {
+            // If focusing on a specific friend
+            friendToFocus != null -> {
+                allLocations[friendToFocus]?.let { friendLoc ->
+                    val position = LatLng(friendLoc.latitude, friendLoc.longitude)
+                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
+                }
+            }
+            // Otherwise use current location
+            currentLocation != null -> {
+                val position = LatLng(currentLocation.latitude, currentLocation.longitude)
                 cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
             }
         }
@@ -297,51 +305,11 @@ fun MapScreen(
             // Show markers for all users from Firebase
             allLocations.forEach { (userId, locationData) ->
                 val position = LatLng(locationData.latitude, locationData.longitude)
-                
-                // Check if this is the selected friend
-                val isSelected = userId == selectedFriendId
-                
                 Marker(
                     state = MarkerState(position = position),
-                    title = locationData.displayName + if(isSelected) " (Selected)" else "",
-                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}",
-                    // Add a small animation for the selected friend's marker
-                    alpha = if (isSelected) 1.0f else 0.8f
+                    title = locationData.displayName,
+                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}"
                 )
-            }
-        }
-        
-        // Add a small info box when a friend is selected
-        selectedFriendId?.let { friendId ->
-            allLocations[friendId]?.let { location ->
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 16.dp)
-                ) {
-                    Card(
-                        modifier = Modifier.padding(8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Viewing ${location.displayName}'s location",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Button(
-                                onClick = {
-                                    // Clear selected friend ID and go back to user's location
-                                    onMyLocationClick()
-                                },
-                                modifier = Modifier.padding(top = 8.dp)
-                            ) {
-                                Text("Back to my location")
-                            }
-                        }
-                    }
-                }
             }
         }
         
@@ -368,13 +336,11 @@ fun MapScreen(
             }
             
             Button(
-                onClick = {
-                    // Clear selected friend ID and go back to user's location
-                    onMyLocationClick()
-                },
-                modifier = Modifier.padding(bottom = 8.dp)
+                onClick = onMyLocationClick,
+                modifier = Modifier.padding(bottom = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Text("My Location")
+                Text("My Location", color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
             
             Button(
@@ -397,12 +363,12 @@ fun MapScreenPreview() {
     TestingTheme {
         MapScreen(
             currentLocation = null, 
-            allLocations = emptyMap(),
-            selectedFriendId = null,
+            allLocations = emptyMap(), 
             onMyLocationClick = {}, 
             onRefreshClick = {},
             onSignOut = {},
-            onNavigateToFriends = {}
+            onNavigateToFriends = {},
+            friendToFocus = null
         )
     }
 }
