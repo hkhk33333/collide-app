@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private var allLocations by mutableStateOf<Map<String, LocationModel>>(emptyMap())
     private var currentScreen by mutableStateOf<Screen>(Screen.MAP)
     private var friendToFocus by mutableStateOf<String?>(null)
+    private var shouldCenterOnMyLocation by mutableStateOf(false)
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -96,17 +97,20 @@ class MainActivity : ComponentActivity() {
                     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                         when (currentScreen) {
                             Screen.MAP -> {
-                                MapScreen(
+                                                                MapScreen(
                                     currentLocation = currentLocation,
                                     allLocations = allLocations,
                                     onMyLocationClick = { 
                                         startLocationUpdates()
                                         friendToFocus = null
+                                        shouldCenterOnMyLocation = true
                                     },
                                     onRefreshClick = { fetchAllLocations() },
                                     onSignOut = { authViewModel.signOut() },
                                     onNavigateToFriends = { currentScreen = Screen.FRIENDS },
-                                    friendToFocus = friendToFocus
+                                    friendToFocus = friendToFocus,
+                                    shouldCenterOnMyLocation = shouldCenterOnMyLocation,
+                                    onLocationCentered = { shouldCenterOnMyLocation = false }
                                 )
                             }
                             Screen.FRIENDS -> {
@@ -254,7 +258,9 @@ fun MapScreen(
     onRefreshClick: () -> Unit,
     onSignOut: () -> Unit,
     onNavigateToFriends: () -> Unit,
-    friendToFocus: String? = null
+    friendToFocus: String? = null,
+    shouldCenterOnMyLocation: Boolean = false,
+    onLocationCentered: () -> Unit = {}
 ) {
     val singapore = LatLng(1.35, 103.87)
     val tokyo = LatLng(35.6762, 139.6503)
@@ -268,29 +274,22 @@ fun MapScreen(
         position = CameraPosition.fromLatLngZoom(initialPosition, 15f)
     }
     
-    // Force camera update when location changes
-    LaunchedEffect(currentLocation) {
-        currentLocation?.let {
-            val position = LatLng(it.latitude, it.longitude)
-            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
+    // Only focus on friend when specifically requested
+    LaunchedEffect(friendToFocus) {
+        friendToFocus?.let { friendId ->
+            allLocations[friendId]?.let { friendLoc ->
+                val position = LatLng(friendLoc.latitude, friendLoc.longitude)
+                cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
+            }
         }
     }
     
-    // Force camera update when location changes or when focusing on a friend
-    LaunchedEffect(currentLocation, friendToFocus) {
-        when {
-            // If focusing on a specific friend
-            friendToFocus != null -> {
-                allLocations[friendToFocus]?.let { friendLoc ->
-                    val position = LatLng(friendLoc.latitude, friendLoc.longitude)
-                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
-                }
-            }
-            // Otherwise use current location
-            currentLocation != null -> {
-                val position = LatLng(currentLocation.latitude, currentLocation.longitude)
-                cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
-            }
+    // Center on my location only when explicitly requested
+    LaunchedEffect(shouldCenterOnMyLocation) {
+        if (shouldCenterOnMyLocation && currentLocation != null) {
+            val position = LatLng(currentLocation.latitude, currentLocation.longitude)
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
+            onLocationCentered()
         }
     }
     
@@ -324,15 +323,6 @@ fun MapScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 Text("Refresh Locations")
-            }
-            
-            Button(
-                onClick = { 
-                    cameraPositionState.position = CameraPosition.fromLatLngZoom(tokyo, 10f)
-                },
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Text("Go to Tokyo")
             }
             
             Button(
