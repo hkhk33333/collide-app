@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 
 class AuthViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
@@ -84,6 +86,25 @@ class AuthViewModel : ViewModel() {
                 } else {
                     Log.w(TAG, "createUser:failure", task.exception)
                     errorMessage = task.exception?.message ?: "Registration failed"
+                    authState = AuthState.UNAUTHENTICATED
+                }
+            }
+    }
+    
+    fun signInWithGoogle(account: GoogleSignInAccount) {
+        authState = AuthState.LOADING
+        errorMessage = null
+        
+        val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+        auth.signInWithCredential(credential)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "signInWithGoogle:success")
+                    currentUser = auth.currentUser
+                    authState = AuthState.AUTHENTICATED
+                } else {
+                    Log.w(TAG, "signInWithGoogle:failure", task.exception)
+                    errorMessage = task.exception?.message ?: "Google sign-in failed"
                     authState = AuthState.UNAUTHENTICATED
                 }
             }

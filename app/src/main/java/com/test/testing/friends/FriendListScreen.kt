@@ -62,12 +62,7 @@ fun FriendListScreen(
     }
     
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddFriend) {
-                Icon(Icons.Filled.Add, contentDescription = "Add friend")
-            }
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -121,6 +116,21 @@ fun FriendListScreen(
                         }
                     }
                 }
+            }
+            
+            // Add Friend Button
+            Button(
+                onClick = onNavigateToAddFriend,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "Add friend",
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text("Add Friend")
             }
             
             if (friends == null) {
