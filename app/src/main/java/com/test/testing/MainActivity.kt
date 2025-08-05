@@ -312,25 +312,24 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    /**
+     * Fetch locations for display on the map.
+     * 
+     * The FirebaseLocationRepository.getAllLocations() method now handles all the filtering logic:
+     * - Gets current user's location from /locations/[myUID]
+     * - Gets accepted friends list from /friendships/[myUID] 
+     * - Gets each friend's location from /locations/[friendUID]
+     * - Returns combined map with only user + accepted friends' locations
+     * 
+     * This simplified approach trusts the repository to return properly filtered data,
+     * eliminating the need for additional filtering logic in the UI layer.
+     */
     private fun fetchAllLocations() {
         locationRepository.getAllLocations { locations ->
-            // Filter to only show friends if we have any
-            friendRepository.getFriendships { friendships ->
-                val acceptedFriends = friendships.filter { it.status == com.test.testing.friends.FriendshipStatus.ACCEPTED }
-                    .map { it.userId }
-                    .toSet()
-                
-                // If we have friends, only show their locations and our own
-                if (acceptedFriends.isNotEmpty()) {
-                    val currentUserId = friendRepository.getCurrentUserId()
-                    allLocations = locations.filter { (userId, _) -> 
-                        userId == currentUserId || acceptedFriends.contains(userId)
-                    }
-                } else {
-                    // If no friends, show all locations
-                    allLocations = locations
-                }
-            }
+            // Repository returns pre-filtered locations (user + accepted friends only)
+            // No additional filtering needed - directly update the map display
+            allLocations = locations
+            Log.d("MainActivity", "Updated map with ${locations.size} locations")
         }
     }
     
