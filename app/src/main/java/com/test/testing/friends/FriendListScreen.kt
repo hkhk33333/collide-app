@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -161,29 +162,27 @@ fun FriendListScreen(
                     )
                 }
             } else {
-                // Friends list
-                Text(
-                    text = "Friend Requests",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                // Friends list - now organized by direction and status
                 
-                // Pending requests section
-                val pendingFriends = friends!!.filter { it.status == FriendshipStatus.PENDING }
-                if (pendingFriends.isEmpty()) {
+                // Incoming requests section (can be accepted)
+                val incomingRequests = friends!!.filter { 
+                    it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.INCOMING 
+                }
+                
+                if (incomingRequests.isNotEmpty()) {
                     Text(
-                        text = "No pending friend requests",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        text = "Incoming Friend Requests",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
-                } else {
+                    
                     LazyColumn(
                         modifier = Modifier
-                            .weight(0.4f)
+                            .weight(0.3f)
                             .fillMaxWidth()
                     ) {
-                        items(pendingFriends) { friend ->
-                            FriendRequestItem(
+                        items(incomingRequests) { friend ->
+                            IncomingFriendRequestItem(
                                 friend = friend,
                                 onAccept = {
                                     friendRepository.acceptFriendRequest(friend.userId) { success, message ->
@@ -196,9 +195,44 @@ fun FriendListScreen(
                             Divider()
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Outgoing requests section (waiting for approval)
+                val outgoingRequests = friends!!.filter { 
+                    it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.OUTGOING 
+                }
+                
+                if (outgoingRequests.isNotEmpty()) {
+                    Text(
+                        text = "Pending Requests",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(0.3f)
+                            .fillMaxWidth()
+                    ) {
+                        items(outgoingRequests) { friend ->
+                            OutgoingFriendRequestItem(friend = friend)
+                            Divider()
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                // Show message if no pending requests
+                if (incomingRequests.isEmpty() && outgoingRequests.isEmpty()) {
+                    Text(
+                        text = "No pending friend requests",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
                 
                 // Accepted friends section
                 Text(
@@ -216,7 +250,7 @@ fun FriendListScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier
-                            .weight(0.6f)
+                            .weight(0.4f)
                             .fillMaxWidth()
                     ) {
                         items(acceptedFriends) { friend ->
@@ -240,7 +274,7 @@ fun FriendListScreen(
 }
 
 @Composable
-fun FriendRequestItem(
+fun IncomingFriendRequestItem(
     friend: FriendshipModel,
     onAccept: () -> Unit
 ) {
@@ -261,18 +295,57 @@ fun FriendRequestItem(
             )
             
             Text(
-                text = "Requested: ${formatDate(friend.requestedAt)}",
-                style = MaterialTheme.typography.bodySmall
+                text = "Wants to be your friend • ${formatDate(friend.requestedAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
             )
         }
         
-        IconButton(onClick = onAccept) {
+        Button(
+            onClick = onAccept,
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
             Icon(
                 Icons.Filled.Check,
                 contentDescription = "Accept",
-                tint = MaterialTheme.colorScheme.primary
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Text("Accept")
+        }
+    }
+}
+
+@Composable
+fun OutgoingFriendRequestItem(
+    friend: FriendshipModel
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = friend.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Text(
+                text = "Waiting for approval • ${formatDate(friend.requestedAt)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline
             )
         }
+        
+        CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp
+        )
     }
 }
 
