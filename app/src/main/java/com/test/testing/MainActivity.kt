@@ -8,6 +8,8 @@ import android.location.Location
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -77,6 +79,15 @@ class MainActivity : ComponentActivity() {
     private var friendToFocus by mutableStateOf<String?>(null)
     private var shouldCenterOnMyLocation by mutableStateOf(false)
     
+    // We request foreground (while-in-use) location first, then handle background separately.
+    // Rationale:
+    // - Android 10 (API 29): background can be requested via the runtime permission dialog, but only AFTER foreground is granted.
+    // - Android 11+ (API 30+): the system no longer grants background directly via the dialog; users must enable
+    //   "Allow all the time" from app settings.
+    // Docs:
+    // - Request location permissions: https://developer.android.com/training/location/permissions
+    // - Background location guidance: https://developer.android.com/training/location/permissions#background
+    // - Request runtime permissions best practices: https://developer.android.com/training/permissions/requesting
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -88,11 +99,9 @@ class MainActivity : ComponentActivity() {
             startBackgroundLocationService()
             
             // Request background location permission if not granted
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val backgroundLocationGranted = permissions[Manifest.permission.ACCESS_BACKGROUND_LOCATION] == true
-                if (!backgroundLocationGranted) {
-                    requestBackgroundLocationPermission()
-                }
+            // Android 10 (API 29) only: request via launcher; Android 11+ requires Settings
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !hasBackgroundLocationPermission()) {
+                requestBackgroundLocationPermission()
             }
         }
     }
@@ -121,9 +130,14 @@ class MainActivity : ComponentActivity() {
                                     currentLocation = currentLocation,
                                     allLocations = allLocations,
                                     onMyLocationClick = { 
-                                        startLocationUpdates()
-                                        friendToFocus = null
-                                        shouldCenterOnMyLocation = true
+                                        // Check permissions before starting location updates
+                                        if (hasLocationPermissions()) {
+                                            startLocationUpdates()
+                                            friendToFocus = null
+                                            shouldCenterOnMyLocation = true
+                                        } else {
+                                            checkLocationPermissions()
+                                        }
                                     },
                                     onSignOut = { authViewModel.signOut() },
                                     onNavigateToFriends = { currentScreen = Screen.FRIENDS },
@@ -158,6 +172,33 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun hasLocationPermissions(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    
+    /**
+     * Returns true if background location is granted. On Android 9 and below (API 28 and lower)
+     * there is no separate background location permission, so we treat it as granted when
+     * foreground is granted.
+     */
+    private fun hasBackgroundLocationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
     
     private fun checkLocationPermissions() {
         when {
@@ -174,27 +215,39 @@ class MainActivity : ComponentActivity() {
                 startBackgroundLocationService()
             }
             else -> {
-                // Request permissions
-                val permissions = mutableListOf(
+                // Request basic location permissions first (background location must be requested separately)
+                val permissions = arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
                 
-                // Add background location permission for Android 10+
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    permissions.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                }
-                
-                requestPermissionLauncher.launch(permissions.toTypedArray())
+                requestPermissionLauncher.launch(permissions)
             }
         }
     }
     
+    /**
+     * Request background location in a platform-appropriate way:
+     * - Android 10 (API 29): request ACCESS_BACKGROUND_LOCATION via the permission launcher (only after foreground granted).
+     * - Android 11+ (API 30+): deep-link users to app settings where they can choose "Allow all the time".
+     * Docs:
+     * - Background location: https://developer.android.com/training/location/permissions#background
+     * - Requesting permissions: https://developer.android.com/training/permissions/requesting
+     */
     private fun requestBackgroundLocationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            requestPermissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            )
+        when {
+            Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> {
+                requestPermissionLauncher.launch(
+                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                )
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                // Redirect users to app settings to allow "Allow all the time"
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+                startActivity(intent)
+            }
         }
     }
     
@@ -237,7 +290,11 @@ class MainActivity : ComponentActivity() {
                 Looper.getMainLooper()
             )
         } catch (e: SecurityException) {
-            // Handle permission issue
+            Log.w("MainActivity", "Location permission denied", e)
+            // Do not re-trigger permission requests here to avoid nag loops, especially when the user
+            // has denied with "Don't ask again". Instead, surface a one-time UI prompt/rationale and
+            // provide a path to app settings if needed.
+            // Docs: https://developer.android.com/training/permissions/requesting
         }
     }
     
