@@ -16,6 +16,7 @@ class FirebaseLocationRepository {
     private val locationsRef = database.getReference("locations")
     private val usersRef = database.getReference("users")
     private val auth = FirebaseAuth.getInstance()
+    private var friendshipListener: ValueEventListener? = null
     
     fun sendLocationUpdate(location: Location, onResult: (success: Boolean, message: String) -> Unit) {
         val currentUser = auth.currentUser
@@ -72,16 +73,18 @@ class FirebaseLocationRepository {
     }
     
     /**
-     * Get locations for current user and all accepted friends.
+     * Get locations for current user and all accepted friends with real-time updates.
      * 
      * Firebase structure: /locations/[uid] contains each user's individual location
      * Firebase rules: Can read own location + friends' locations if friendship status is ACCEPTED
      * 
      * Process:
-     * 1. Get current user's location from /locations/[myUID]
-     * 2. Get list of accepted friends from /friendships/[myUID]
-     * 3. For each accepted friend, get their location from /locations/[friendUID]
-     * 4. Combine all locations into single map for display
+     * 1. Set up real-time listener on friendships to detect status changes
+     * 2. When friendships change, refresh the entire location map
+     * 3. Get current user's location from /locations/[myUID]
+     * 4. Get list of accepted friends from /friendships/[myUID]
+     * 5. For each accepted friend, get their location from /locations/[friendUID]
+     * 6. Combine all locations into single map for display
      */
     fun getAllLocations(onLocationsReceived: (Map<String, LocationModel>) -> Unit) {
         val currentUser = auth.currentUser
@@ -91,7 +94,6 @@ class FirebaseLocationRepository {
             return
         }
         
-        val locations = mutableMapOf<String, LocationModel>()
         val currentUserId = currentUser.uid
         val friendsRef = database.getReference("friendships")
         
@@ -100,7 +102,44 @@ class FirebaseLocationRepository {
             friendsRef.child(currentUserId).removeEventListener(listener)
         }
         
-        Log.d(TAG, "Getting locations for user: $currentUserId and their accepted friends")
+        Log.d(TAG, "Setting up real-time location updates for user: $currentUserId")
+        
+        // Set up real-time listener on friendships to auto-refresh when status changes
+        friendshipListener = object : ValueEventListener {
+            override fun onDataChange(friendshipsSnapshot: DataSnapshot) {
+                Log.d(TAG, "Friendships changed - refreshing locations")
+                refreshAllLocations(currentUserId, friendshipsSnapshot, onLocationsReceived)
+            }
+            
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Error listening to friendships changes", error.toException())
+                onLocationsReceived(emptyMap())
+            }
+        }
+        
+        friendsRef.child(currentUserId).addValueEventListener(friendshipListener!!)
+    }
+    
+    fun removeLocationListener() {
+        val currentUser = auth.currentUser
+        if (currentUser != null && friendshipListener != null) {
+            val friendsRef = database.getReference("friendships")
+            friendsRef.child(currentUser.uid).removeEventListener(friendshipListener!!)
+            friendshipListener = null
+            Log.d(TAG, "Removed location listener")
+        }
+    }
+    
+    /**
+     * Refresh all locations based on current friendship status
+     * Called whenever friendships data changes
+     */
+    private fun refreshAllLocations(
+        currentUserId: String,
+        friendshipsSnapshot: DataSnapshot,
+        onLocationsReceived: (Map<String, LocationModel>) -> Unit
+    ) {
+        val locations = mutableMapOf<String, LocationModel>()
         
         // Step 1: Get my own location from /locations/[myUID]
         locationsRef.child(currentUserId).get().addOnSuccessListener { mySnapshot ->
@@ -112,64 +151,56 @@ class FirebaseLocationRepository {
                 Log.d(TAG, "No location found for current user")
             }
             
-            // Step 2: Get accepted friends list from /friendships/[myUID]
-            friendsRef.child(currentUserId).get().addOnSuccessListener { friendshipsSnapshot ->
-                val acceptedFriends = mutableListOf<String>()
-                
-                // Parse friendships to find accepted ones
-                for (friendSnapshot in friendshipsSnapshot.children) {
-                    val friendId = friendSnapshot.key ?: continue
-                    val status = friendSnapshot.child("status").getValue(String::class.java)
-                    if (status == "ACCEPTED") {
-                        acceptedFriends.add(friendId)
-                    }
+            // Step 2: Parse accepted friends from the friendships snapshot
+            val acceptedFriends = mutableListOf<String>()
+            
+            for (friendSnapshot in friendshipsSnapshot.children) {
+                val friendId = friendSnapshot.key ?: continue
+                val status = friendSnapshot.child("status").getValue(String::class.java)
+                if (status == "ACCEPTED") {
+                    acceptedFriends.add(friendId)
                 }
-                
-                Log.d(TAG, "Found ${acceptedFriends.size} accepted friends")
-                
-                if (acceptedFriends.isEmpty()) {
-                    // No friends - return just my location
-                    Log.d(TAG, "No accepted friends, returning only my location")
-                    onLocationsReceived(locations)
-                    return@addOnSuccessListener
-                }
-                
-                // Step 3: Get each friend's location from /locations/[friendUID]
-                var processedFriends = 0
-                
-                acceptedFriends.forEach { friendId ->
-                    locationsRef.child(friendId).get().addOnSuccessListener { friendSnapshot ->
-                        if (friendSnapshot.exists()) {
-                            val friendLocation = parseLocationFromSnapshot(friendSnapshot, friendId)
-                            locations[friendId] = friendLocation
-                            Log.d(TAG, "Found friend location: ${friendLocation.displayName}")
-                        } else {
-                            Log.d(TAG, "No location found for friend: $friendId")
-                        }
-                        
-                        processedFriends++
-                        
-                        // Step 4: Return results when all friends processed
-                        if (processedFriends == acceptedFriends.size) {
-                            Log.d(TAG, "Completed loading ${locations.size} total locations")
-                            onLocationsReceived(locations)
-                        }
-                    }.addOnFailureListener { e ->
-                        Log.e(TAG, "Error getting friend location for $friendId", e)
-                        processedFriends++
-                        
-                        // Continue even if some friend locations fail
-                        if (processedFriends == acceptedFriends.size) {
-                            Log.d(TAG, "Completed loading ${locations.size} total locations (with some failures)")
-                            onLocationsReceived(locations)
-                        }
-                    }
-                }
-            }.addOnFailureListener { e ->
-                Log.e(TAG, "Error getting friendships list", e)
-                // Return at least my location if friendships query fails
-                Log.d(TAG, "Friendships query failed, returning only my location")
+            }
+            
+            Log.d(TAG, "Found ${acceptedFriends.size} accepted friends")
+            
+            if (acceptedFriends.isEmpty()) {
+                // No friends - return just my location
+                Log.d(TAG, "No accepted friends, returning only my location")
                 onLocationsReceived(locations)
+                return@addOnSuccessListener
+            }
+            
+            // Step 3: Get each friend's location from /locations/[friendUID]
+            var processedFriends = 0
+            
+            acceptedFriends.forEach { friendId ->
+                locationsRef.child(friendId).get().addOnSuccessListener { friendSnapshot ->
+                    if (friendSnapshot.exists()) {
+                        val friendLocation = parseLocationFromSnapshot(friendSnapshot, friendId)
+                        locations[friendId] = friendLocation
+                        Log.d(TAG, "Found friend location: ${friendLocation.displayName}")
+                    } else {
+                        Log.d(TAG, "No location found for friend: $friendId")
+                    }
+                    
+                    processedFriends++
+                    
+                    // Step 4: Return results when all friends processed
+                    if (processedFriends == acceptedFriends.size) {
+                        Log.d(TAG, "Completed loading ${locations.size} total locations")
+                        onLocationsReceived(locations)
+                    }
+                }.addOnFailureListener { e ->
+                    Log.e(TAG, "Error getting friend location for $friendId", e)
+                    processedFriends++
+                    
+                    // Continue even if some friend locations fail
+                    if (processedFriends == acceptedFriends.size) {
+                        Log.d(TAG, "Completed loading ${locations.size} total locations (with some failures)")
+                        onLocationsReceived(locations)
+                    }
+                }
             }
         }.addOnFailureListener { e ->
             Log.e(TAG, "Error getting my location", e)

@@ -20,6 +20,7 @@ class FriendRepository {
     
     /**
      * Send a friend request to another user
+     * Uses sequential writes with proper error handling instead of complex transactions
      */
     fun sendFriendRequest(targetUserId: String, onComplete: (success: Boolean, message: String) -> Unit) {
         val currentUser = auth.currentUser
@@ -43,33 +44,57 @@ class FriendRepository {
                 return@addOnSuccessListener
             }
             
-            // Create friendship data
-            val friendship = FirebaseFriendship(
-                status = FriendshipStatus.PENDING.name,
-                requestedAt = System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
-            )
-            
-            // Store the friendship in both users' friend lists
-            // This is a bidirectional relationship
-            friendsRef.child(currentUserId).child(targetUserId)
-                .setValue(friendship)
-                .addOnSuccessListener {
-                    // Now store it in the target user's list too
-                    friendsRef.child(targetUserId).child(currentUserId)
-                        .setValue(friendship)
-                        .addOnSuccessListener {
-                            onComplete(true, "Friend request sent")
-                        }
-                        .addOnFailureListener { e ->
-                            Log.e(TAG, "Error adding reverse friendship", e)
-                            onComplete(false, "Failed to send friend request: ${e.message}")
-                        }
+            // Check if friendship already exists
+            friendsRef.child(currentUserId).child(targetUserId).get().addOnSuccessListener { existingSnapshot ->
+                if (existingSnapshot.exists()) {
+                    onComplete(false, "Friend request already exists")
+                    return@addOnSuccessListener
                 }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "Error adding friendship", e)
-                    onComplete(false, "Failed to send friend request: ${e.message}")
-                }
+                
+                val timestamp = System.currentTimeMillis()
+                
+                // Create friendship data for requester (outgoing)
+                val outgoingFriendship = mapOf(
+                    "status" to FriendshipStatus.PENDING.name,
+                    "direction" to FriendshipDirection.OUTGOING.name,
+                    "requestedAt" to timestamp,
+                    "updatedAt" to timestamp
+                )
+                
+                // Create friendship data for recipient (incoming)
+                val incomingFriendship = mapOf(
+                    "status" to FriendshipStatus.PENDING.name,
+                    "direction" to FriendshipDirection.INCOMING.name,
+                    "requestedAt" to timestamp,
+                    "updatedAt" to timestamp
+                )
+                
+                // First, set the requester's outgoing friendship
+                friendsRef.child(currentUserId).child(targetUserId).setValue(outgoingFriendship)
+                    .addOnSuccessListener {
+                        Log.d(TAG, "Outgoing friendship created successfully")
+                        
+                        // Then set the recipient's incoming friendship
+                        friendsRef.child(targetUserId).child(currentUserId).setValue(incomingFriendship)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "Friend request sent successfully")
+                                onComplete(true, "Friend request sent")
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Failed to create incoming friendship", e)
+                                // Rollback: remove the outgoing friendship
+                                friendsRef.child(currentUserId).child(targetUserId).removeValue()
+                                onComplete(false, "Failed to send friend request: ${e.message}")
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Failed to create outgoing friendship", e)
+                        onComplete(false, "Failed to send friend request: ${e.message}")
+                    }
+            }.addOnFailureListener { e ->
+                Log.e(TAG, "Error checking existing friendship", e)
+                onComplete(false, "Failed to check existing friendship: ${e.message}")
+            }
         }.addOnFailureListener { e ->
             Log.e(TAG, "Error checking if user exists", e)
             onComplete(false, "Failed to check if user exists: ${e.message}")
@@ -94,6 +119,7 @@ class FriendRepository {
                 for (friendSnapshot in snapshot.children) {
                     val friendId = friendSnapshot.key ?: continue
                     val status = friendSnapshot.child("status").getValue(String::class.java) ?: continue
+                    val direction = friendSnapshot.child("direction").getValue(String::class.java) ?: continue
                     val requestedAt = friendSnapshot.child("requestedAt").getValue(Long::class.java) ?: 0L
                     val updatedAt = friendSnapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
                     
@@ -105,6 +131,7 @@ class FriendRepository {
                             userId = friendId,
                             displayName = displayName,
                             status = FriendshipStatus.valueOf(status),
+                            direction = FriendshipDirection.valueOf(direction),
                             requestedAt = requestedAt,
                             updatedAt = updatedAt
                         )
@@ -122,6 +149,7 @@ class FriendRepository {
                             userId = friendId,
                             displayName = "Unknown",
                             status = FriendshipStatus.valueOf(status),
+                            direction = FriendshipDirection.valueOf(direction),
                             requestedAt = requestedAt,
                             updatedAt = updatedAt
                         )
@@ -150,6 +178,7 @@ class FriendRepository {
     
     /**
      * Accept a friend request
+     * Uses sequential writes with proper error handling
      */
     fun acceptFriendRequest(friendId: String, onComplete: (success: Boolean, message: String) -> Unit) {
         val currentUser = auth.currentUser
@@ -159,28 +188,42 @@ class FriendRepository {
         }
         
         val currentUserId = currentUser.uid
+        val timestamp = System.currentTimeMillis()
         
-        // Update both sides of the friendship
-        val updates = mapOf(
+        // First, update the recipient's friendship (INCOMING -> ACCEPTED)
+        val recipientUpdates = mapOf(
             "status" to FriendshipStatus.ACCEPTED.name,
-            "updatedAt" to System.currentTimeMillis()
+            "updatedAt" to timestamp
         )
         
-        friendsRef.child(currentUserId).child(friendId)
-            .updateChildren(updates)
+        friendsRef.child(currentUserId).child(friendId).updateChildren(recipientUpdates)
             .addOnSuccessListener {
-                friendsRef.child(friendId).child(currentUserId)
-                    .updateChildren(updates)
+                Log.d(TAG, "Recipient friendship updated successfully")
+                
+                // Then update the requester's friendship (OUTGOING -> ACCEPTED)
+                val requesterUpdates = mapOf(
+                    "status" to FriendshipStatus.ACCEPTED.name,
+                    "updatedAt" to timestamp
+                )
+                
+                friendsRef.child(friendId).child(currentUserId).updateChildren(requesterUpdates)
                     .addOnSuccessListener {
+                        Log.d(TAG, "Friend request accepted successfully")
                         onComplete(true, "Friend request accepted")
                     }
                     .addOnFailureListener { e ->
-                        Log.e(TAG, "Error updating reverse friendship", e)
+                        Log.e(TAG, "Failed to update requester friendship", e)
+                        // Rollback: revert recipient friendship back to PENDING
+                        val rollbackUpdates = mapOf(
+                            "status" to FriendshipStatus.PENDING.name,
+                            "updatedAt" to timestamp
+                        )
+                        friendsRef.child(currentUserId).child(friendId).updateChildren(rollbackUpdates)
                         onComplete(false, "Failed to accept friend request: ${e.message}")
                     }
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Error updating friendship", e)
+                Log.e(TAG, "Failed to update recipient friendship", e)
                 onComplete(false, "Failed to accept friend request: ${e.message}")
             }
     }
