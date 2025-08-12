@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "name": "trunk-commitizen-config",
+  "version": "0.0.0",
+  "dependencies": {
+    "commitizen": "^4.3.0",
+    "cz-emoji": "^1.3.1"
+  }
+}
