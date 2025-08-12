@@ -49,137 +49,142 @@ fun FriendListScreen(
     friendRepository: FriendRepository,
     onNavigateToAddFriend: () -> Unit,
     onNavigateBack: () -> Unit,
-    onViewFriendLocation: (String) -> Unit = {}
+    onViewFriendLocation: (String) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var friends by remember { mutableStateOf<List<FriendshipModel>?>(null) }
-    
+
     // Load friends on initial composition
     LaunchedEffect(true) {
         friendRepository.getFriendships { friendships ->
             friends = friendships
         }
     }
-    
+
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
         ) {
             Text(
                 text = "Friends",
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Display current user information
             friendRepository.getCurrentUserId()?.let { userId ->
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(16.dp),
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 Icons.Filled.Person,
                                 contentDescription = "User",
-                                modifier = Modifier.padding(end = 8.dp)
+                                modifier = Modifier.padding(end = 8.dp),
                             )
-                            
+
                             Column {
                                 Text(
                                     text = "Your User ID:",
-                                    style = MaterialTheme.typography.bodySmall
+                                    style = MaterialTheme.typography.bodySmall,
                                 )
-                                
+
                                 Text(
                                     text = userId,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
                                 )
-                                
+
                                 Text(
                                     text = "(Share this with friends who want to add you)",
-                                    style = MaterialTheme.typography.bodySmall
+                                    style = MaterialTheme.typography.bodySmall,
                                 )
                             }
                         }
                     }
                 }
             }
-            
+
             // Add Friend Button
             Button(
                 onClick = onNavigateToAddFriend,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
             ) {
                 Icon(
                     Icons.Filled.Add,
                     contentDescription = "Add friend",
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.padding(end = 8.dp),
                 )
                 Text("Add Friend")
             }
-            
+
             if (friends == null) {
                 // Loading state
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     CircularProgressIndicator()
                     Text(
                         text = "Loading friends...",
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
             } else if (friends!!.isEmpty()) {
                 // No friends state
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = "You don't have any friends yet.",
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.bodyLarge,
                     )
                     Text(
                         text = "Tap the + button to add friends.",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             } else {
                 // Friends list - now organized by direction and status
-                
+
                 // Incoming requests section (can be accepted)
-                val incomingRequests = friends!!.filter { 
-                    it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.INCOMING 
-                }
-                
+                val incomingRequests =
+                    friends!!.filter {
+                        it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.INCOMING
+                    }
+
                 if (incomingRequests.isNotEmpty()) {
                     Text(
                         text = "Incoming Friend Requests",
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
-                    
+
                     LazyColumn(
-                        modifier = Modifier
-                            .weight(0.3f)
-                            .fillMaxWidth()
+                        modifier =
+                            Modifier
+                                .weight(0.3f)
+                                .fillMaxWidth(),
                     ) {
                         items(incomingRequests) { friend ->
                             IncomingFriendRequestItem(
@@ -190,68 +195,71 @@ fun FriendListScreen(
                                             snackbarHostState.showSnackbar(message)
                                         }
                                     }
-                                }
+                                },
                             )
                             Divider()
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-                
+
                 // Outgoing requests section (waiting for approval)
-                val outgoingRequests = friends!!.filter { 
-                    it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.OUTGOING 
-                }
-                
+                val outgoingRequests =
+                    friends!!.filter {
+                        it.status == FriendshipStatus.PENDING && it.direction == FriendshipDirection.OUTGOING
+                    }
+
                 if (outgoingRequests.isNotEmpty()) {
                     Text(
                         text = "Pending Requests",
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
-                    
+
                     LazyColumn(
-                        modifier = Modifier
-                            .weight(0.3f)
-                            .fillMaxWidth()
+                        modifier =
+                            Modifier
+                                .weight(0.3f)
+                                .fillMaxWidth(),
                     ) {
                         items(outgoingRequests) { friend ->
                             OutgoingFriendRequestItem(friend = friend)
                             Divider()
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-                
+
                 // Show message if no pending requests
                 if (incomingRequests.isEmpty() && outgoingRequests.isEmpty()) {
                     Text(
                         text = "No pending friend requests",
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
+                        modifier = Modifier.padding(bottom = 16.dp),
                     )
                 }
-                
+
                 // Accepted friends section
                 Text(
                     text = "Your Friends",
                     style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier.padding(vertical = 8.dp),
                 )
-                
+
                 val acceptedFriends = friends!!.filter { it.status == FriendshipStatus.ACCEPTED }
                 if (acceptedFriends.isEmpty()) {
                     Text(
                         text = "You don't have any accepted friends yet",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .weight(0.4f)
-                            .fillMaxWidth()
+                        modifier =
+                            Modifier
+                                .weight(0.4f)
+                                .fillMaxWidth(),
                     ) {
                         items(acceptedFriends) { friend ->
                             FriendItem(friend = friend, onViewLocation = onViewFriendLocation)
@@ -260,12 +268,12 @@ fun FriendListScreen(
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Button(
                 onClick = onNavigateBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Back to Map")
             }
@@ -276,39 +284,40 @@ fun FriendListScreen(
 @Composable
 fun IncomingFriendRequestItem(
     friend: FriendshipModel,
-    onAccept: () -> Unit
+    onAccept: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         ) {
             Text(
                 text = friend.displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
-            
+
             Text(
                 text = "Wants to be your friend • ${formatDate(friend.requestedAt)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
             )
         }
-        
+
         Button(
             onClick = onAccept,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 8.dp),
         ) {
             Icon(
                 Icons.Filled.Check,
                 contentDescription = "Accept",
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(end = 4.dp),
             )
             Text("Accept")
         }
@@ -316,35 +325,34 @@ fun IncomingFriendRequestItem(
 }
 
 @Composable
-fun OutgoingFriendRequestItem(
-    friend: FriendshipModel
-) {
+fun OutgoingFriendRequestItem(friend: FriendshipModel) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         ) {
             Text(
                 text = friend.displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
-            
+
             Text(
                 text = "Waiting for approval • ${formatDate(friend.requestedAt)}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.outline,
             )
         }
-        
+
         CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
-            strokeWidth = 2.dp
+            strokeWidth = 2.dp,
         )
     }
 }
@@ -352,32 +360,33 @@ fun OutgoingFriendRequestItem(
 @Composable
 fun FriendItem(
     friend: FriendshipModel,
-    onViewLocation: (String) -> Unit
+    onViewLocation: (String) -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         ) {
             Text(
                 text = friend.displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
-            
+
             Text(
                 text = "Friends since: ${formatDate(friend.updatedAt)}",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
             )
         }
-        
+
         Button(
-            onClick = { onViewLocation(friend.userId) }
+            onClick = { onViewLocation(friend.userId) },
         ) {
             Text("View Location")
         }
@@ -387,4 +396,4 @@ fun FriendItem(
 private fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
     return sdf.format(Date(timestamp))
-} 
+}

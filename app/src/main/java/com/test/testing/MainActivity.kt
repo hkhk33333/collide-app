@@ -3,23 +3,26 @@ package com.test.testing
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.location.Location
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
-import android.util.Log
-import android.net.Uri
 import android.provider.Settings
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -37,8 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -62,11 +63,10 @@ import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
 import com.test.testing.auth.AuthNavigation
 import com.test.testing.auth.AuthViewModel
-import com.test.testing.ui.theme.TestingTheme
-import android.widget.Toast
 import com.test.testing.friends.AddFriendScreen
 import com.test.testing.friends.FriendListScreen
 import com.test.testing.friends.FriendRepository
+import com.test.testing.ui.theme.TestingTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
     private var currentScreen by mutableStateOf<Screen>(Screen.MAP)
     private var friendToFocus by mutableStateOf<String?>(null)
     private var shouldCenterOnMyLocation by mutableStateOf(false)
-    
+
     // We request foreground (while-in-use) location first, then handle background separately.
     // Rationale:
     // - Android 10 (API 29): background can be requested via the runtime permission dialog, but only AFTER foreground is granted.
@@ -88,48 +88,50 @@ class MainActivity : ComponentActivity() {
     // - Request location permissions: https://developer.android.com/training/location/permissions
     // - Background location guidance: https://developer.android.com/training/location/permissions#background
     // - Request runtime permissions best practices: https://developer.android.com/training/permissions/requesting
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val locationPermissionGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        
-        if (locationPermissionGranted) {
-            startLocationUpdates()
-            startBackgroundLocationService()
-            
-            // Request background location permission if not granted
-            // Android 10 (API 29) only: request via launcher; Android 11+ requires Settings
-            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !hasBackgroundLocationPermission()) {
-                requestBackgroundLocationPermission()
+    private val requestPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { permissions ->
+            val locationPermissionGranted =
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                    permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+            if (locationPermissionGranted) {
+                startLocationUpdates()
+                startBackgroundLocationService()
+
+                // Request background location permission if not granted
+                // Android 10 (API 29) only: request via launcher; Android 11+ requires Settings
+                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !hasBackgroundLocationPermission()) {
+                    requestBackgroundLocationPermission()
+                }
             }
         }
-    }
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        
+
         enableEdgeToEdge()
         setContent {
             val authViewModel: AuthViewModel = viewModel()
-            
+
             TestingTheme {
                 AuthNavigation(
                     authViewModel = authViewModel,
-                    onAuthenticated = { 
+                    onAuthenticated = {
                         // Once authenticated, request location permissions
                         checkLocationPermissions()
-                    }
+                    },
                 ) {
                     // Main app content when authenticated
                     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                         when (currentScreen) {
                             Screen.MAP -> {
-                                                                MapScreen(
+                                MapScreen(
                                     currentLocation = currentLocation,
                                     allLocations = allLocations,
-                                    onMyLocationClick = { 
+                                    onMyLocationClick = {
                                         // Check permissions before starting location updates
                                         if (hasLocationPermissions()) {
                                             startLocationUpdates()
@@ -143,27 +145,27 @@ class MainActivity : ComponentActivity() {
                                     onNavigateToFriends = { currentScreen = Screen.FRIENDS },
                                     friendToFocus = friendToFocus,
                                     shouldCenterOnMyLocation = shouldCenterOnMyLocation,
-                                    onLocationCentered = { shouldCenterOnMyLocation = false }
+                                    onLocationCentered = { shouldCenterOnMyLocation = false },
                                 )
                             }
                             Screen.FRIENDS -> {
                                 FriendListScreen(
                                     friendRepository = friendRepository,
                                     onNavigateToAddFriend = { currentScreen = Screen.ADD_FRIEND },
-                                    onNavigateBack = { 
+                                    onNavigateBack = {
                                         friendToFocus = null
-                                        currentScreen = Screen.MAP 
+                                        currentScreen = Screen.MAP
                                     },
                                     onViewFriendLocation = { userId ->
                                         friendToFocus = userId
                                         currentScreen = Screen.MAP
-                                    }
+                                    },
                                 )
                             }
                             Screen.ADD_FRIEND -> {
                                 AddFriendScreen(
                                     friendRepository = friendRepository,
-                                    onNavigateBack = { currentScreen = Screen.FRIENDS }
+                                    onNavigateBack = { currentScreen = Screen.FRIENDS },
                                 )
                             }
                         }
@@ -173,59 +175,58 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun hasLocationPermissions(): Boolean {
-        return ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
+    private fun hasLocationPermissions(): Boolean =
         ContextCompat.checkSelfPermission(
             this,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-    
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+            ) == PackageManager.PERMISSION_GRANTED
+
     /**
      * Returns true if background location is granted. On Android 9 and below (API 28 and lower)
      * there is no separate background location permission, so we treat it as granted when
      * foreground is granted.
      */
-    private fun hasBackgroundLocationPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+    private fun hasBackgroundLocationPermission(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContextCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
             ) == PackageManager.PERMISSION_GRANTED
         } else {
             true
         }
-    }
-    
+
     private fun checkLocationPermissions() {
         when {
             ContextCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
             ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED -> {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ) == PackageManager.PERMISSION_GRANTED -> {
                 // Permission is granted
                 startLocationUpdates()
                 startBackgroundLocationService()
             }
             else -> {
                 // Request basic location permissions first (background location must be requested separately)
-                val permissions = arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-                
+                val permissions =
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                    )
+
                 requestPermissionLauncher.launch(permissions)
             }
         }
     }
-    
+
     /**
      * Request background location in a platform-appropriate way:
      * - Android 10 (API 29): request ACCESS_BACKGROUND_LOCATION via the permission launcher (only after foreground granted).
@@ -238,19 +239,20 @@ class MainActivity : ComponentActivity() {
         when {
             Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> {
                 requestPermissionLauncher.launch(
-                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                 )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
                 // Redirect users to app settings to allow "Allow all the time"
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package", packageName, null)
-                }
+                val intent =
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", packageName, null)
+                    }
                 startActivity(intent)
             }
         }
     }
-    
+
     private fun startBackgroundLocationService() {
         val serviceIntent = Intent(this, LocationService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -259,7 +261,7 @@ class MainActivity : ComponentActivity() {
             startService(serviceIntent)
         }
     }
-    
+
     private fun startLocationUpdates() {
         try {
             // Get last known location first for immediate feedback
@@ -269,25 +271,29 @@ class MainActivity : ComponentActivity() {
                     sendLocationToServer(location)
                 }
             }
-            
+
             // Set up regular updates
-            val locationRequest = LocationRequest.Builder(
-                Priority.PRIORITY_HIGH_ACCURACY, 3000 // Update every 3 seconds
-            ).build()
-            
-            locationCallback = object : LocationCallback() {
-                override fun onLocationResult(locationResult: LocationResult) {
-                    for (loc in locationResult.locations) {
-                        currentLocation = loc
-                        sendLocationToServer(loc)
+            val locationRequest =
+                LocationRequest
+                    .Builder(
+                        Priority.PRIORITY_HIGH_ACCURACY,
+                        3000, // Update every 3 seconds
+                    ).build()
+
+            locationCallback =
+                object : LocationCallback() {
+                    override fun onLocationResult(locationResult: LocationResult) {
+                        for (loc in locationResult.locations) {
+                            currentLocation = loc
+                            sendLocationToServer(loc)
+                        }
                     }
                 }
-            }
-            
+
             fusedLocationClient.requestLocationUpdates(
                 locationRequest,
                 locationCallback!!,
-                Looper.getMainLooper()
+                Looper.getMainLooper(),
             )
         } catch (e: SecurityException) {
             Log.w("MainActivity", "Location permission denied", e)
@@ -297,7 +303,7 @@ class MainActivity : ComponentActivity() {
             // Docs: https://developer.android.com/training/permissions/requesting
         }
     }
-    
+
     private fun sendLocationToServer(location: Location) {
         Log.d("MainActivity", "Sending location to server: lat=${location.latitude}, lng=${location.longitude}")
         locationRepository.sendLocationUpdate(location) { success, message ->
@@ -311,16 +317,16 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    
+
     /**
      * Fetch locations for display on the map.
-     * 
+     *
      * The FirebaseLocationRepository.getAllLocations() method now handles all the filtering logic:
      * - Gets current user's location from /locations/[myUID]
-     * - Gets accepted friends list from /friendships/[myUID] 
+     * - Gets accepted friends list from /friendships/[myUID]
      * - Gets each friend's location from /locations/[friendUID]
      * - Returns combined map with only user + accepted friends' locations
-     * 
+     *
      * This simplified approach trusts the repository to return properly filtered data,
      * eliminating the need for additional filtering logic in the UI layer.
      */
@@ -332,14 +338,14 @@ class MainActivity : ComponentActivity() {
             Log.d("MainActivity", "Updated map with ${locations.size} locations")
         }
     }
-    
+
     override fun onPause() {
         super.onPause()
         locationCallback?.let {
             fusedLocationClient.removeLocationUpdates(it)
         }
     }
-    
+
     override fun onResume() {
         super.onResume()
         if (locationCallback != null) {
@@ -357,19 +363,21 @@ fun MapScreen(
     onNavigateToFriends: () -> Unit,
     friendToFocus: String? = null,
     shouldCenterOnMyLocation: Boolean = false,
-    onLocationCentered: () -> Unit = {}
+    onLocationCentered: () -> Unit = {},
 ) {
     val singapore = LatLng(1.35, 103.87)
-    
+
     // Default to Singapore if no location available, but will update when location is found
-    val initialPosition = currentLocation?.let {
-        LatLng(it.latitude, it.longitude)
-    } ?: singapore
-    
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(initialPosition, 15f)
-    }
-    
+    val initialPosition =
+        currentLocation?.let {
+            LatLng(it.latitude, it.longitude)
+        } ?: singapore
+
+    val cameraPositionState =
+        rememberCameraPositionState {
+            position = CameraPosition.fromLatLngZoom(initialPosition, 15f)
+        }
+
     // Auto-center on current location when it becomes available
     LaunchedEffect(currentLocation) {
         currentLocation?.let { location ->
@@ -377,7 +385,7 @@ fun MapScreen(
             cameraPositionState.position = CameraPosition.fromLatLngZoom(position, 15f)
         }
     }
-    
+
     // Only focus on friend when specifically requested
     LaunchedEffect(friendToFocus) {
         friendToFocus?.let { friendId ->
@@ -387,7 +395,7 @@ fun MapScreen(
             }
         }
     }
-    
+
     // Center on my location only when explicitly requested
     LaunchedEffect(shouldCenterOnMyLocation) {
         if (shouldCenterOnMyLocation && currentLocation != null) {
@@ -396,18 +404,20 @@ fun MapScreen(
             onLocationCentered()
         }
     }
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
-            properties = MapProperties(
-                isMyLocationEnabled = currentLocation != null
-            ),
-            uiSettings = MapUiSettings(
-                zoomControlsEnabled = true,
-                zoomGesturesEnabled = true
-            )
+            properties =
+                MapProperties(
+                    isMyLocationEnabled = currentLocation != null,
+                ),
+            uiSettings =
+                MapUiSettings(
+                    zoomControlsEnabled = true,
+                    zoomGesturesEnabled = true,
+                ),
         ) {
             // Show markers for all users from Firebase
             allLocations.forEach { (userId, locationData) ->
@@ -415,28 +425,29 @@ fun MapScreen(
                 Marker(
                     state = MarkerState(position = position),
                     title = locationData.displayName,
-                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}"
+                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}",
                 )
             }
         }
-        
+
         // Button layout at the bottom of the screen
         Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp)
+            modifier =
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp),
         ) {
             Button(
                 onClick = onMyLocationClick,
                 modifier = Modifier.padding(bottom = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
             ) {
                 Text("My Location", color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
-            
+
             MyAccountButton(
                 onSignOut = onSignOut,
-                onNavigateToFriends = onNavigateToFriends
+                onNavigateToFriends = onNavigateToFriends,
             )
         }
     }
@@ -445,50 +456,51 @@ fun MapScreen(
 @Composable
 fun MyAccountButton(
     onSignOut: () -> Unit,
-    onNavigateToFriends: () -> Unit
+    onNavigateToFriends: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    
+
     Box {
         Button(
-            onClick = { expanded = true }
+            onClick = { expanded = true },
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     Icons.Filled.AccountCircle,
                     contentDescription = "My Account",
-                    modifier = Modifier
-                        .size(18.dp)
-                        .padding(end = 4.dp)
+                    modifier =
+                        Modifier
+                            .size(18.dp)
+                            .padding(end = 4.dp),
                 )
                 Text("My Account")
                 Icon(
                     Icons.Filled.ArrowDropDown,
                     contentDescription = "Dropdown",
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
-        
+
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
                 text = { Text("Friends") },
                 onClick = {
                     expanded = false
                     onNavigateToFriends()
-                }
+                },
             )
             DropdownMenuItem(
                 text = { Text("Sign Out") },
                 onClick = {
                     expanded = false
                     onSignOut()
-                }
+                },
             )
         }
     }
@@ -498,12 +510,12 @@ fun MyAccountButton(
 fun MapScreenPreview() {
     TestingTheme {
         MapScreen(
-            currentLocation = null, 
-            allLocations = emptyMap(), 
-            onMyLocationClick = {}, 
+            currentLocation = null,
+            allLocations = emptyMap(),
+            onMyLocationClick = {},
             onSignOut = {},
             onNavigateToFriends = {},
-            friendToFocus = null
+            friendToFocus = null,
         )
     }
 }
@@ -511,5 +523,5 @@ fun MapScreenPreview() {
 enum class Screen {
     MAP,
     FRIENDS,
-    ADD_FRIEND
-} 
+    ADD_FRIEND,
+}

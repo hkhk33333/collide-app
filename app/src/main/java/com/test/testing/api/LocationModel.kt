@@ -5,10 +5,10 @@ data class LocationModel(
     val longitude: Double,
     val userId: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val displayName: String = "Unknown User"
+    val displayName: String = "Unknown User",
 )
 
 data class LocationResponse(
     val success: Boolean,
-    val message: String
-) 
+    val message: String,
+)
