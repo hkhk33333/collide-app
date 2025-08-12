@@ -25,46 +25,48 @@ import kotlinx.coroutines.launch
 @Composable
 fun AddFriendScreen(
     friendRepository: FriendRepository,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var userId by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
-    
+
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .padding(16.dp)
+            modifier =
+                Modifier
+                    .padding(paddingValues)
+                    .padding(16.dp),
         ) {
             Text(
                 text = "Add a Friend",
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
-                text = "Enter the user ID of the person you want to add as a friend. " +
-                      "You can find this in their profile.",
-                style = MaterialTheme.typography.bodyMedium
+                text =
+                    "Enter the user ID of the person you want to add as a friend. " +
+                        "You can find this in their profile.",
+                style = MaterialTheme.typography.bodyMedium,
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = userId,
                 onValueChange = { userId = it },
                 label = { Text("User ID") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading
+                enabled = !isLoading,
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Button(
                 onClick = {
                     if (userId.isNotBlank()) {
@@ -81,19 +83,19 @@ fun AddFriendScreen(
                     }
                 },
                 enabled = userId.isNotBlank() && !isLoading,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Send Friend Request")
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Button(
                 onClick = onNavigateBack,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Back")
             }
         }
     }
-} 
+}

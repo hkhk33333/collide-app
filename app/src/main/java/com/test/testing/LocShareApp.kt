@@ -7,10 +7,10 @@ import com.google.firebase.ktx.initialize
 
 class LocShareApp : Application() {
     private val TAG = "LocShareApp"
-    
+
     override fun onCreate() {
         super.onCreate()
-        
+
         // Initialize Firebase
         try {
             Log.d(TAG, "Initializing Firebase")
@@ -20,4 +20,4 @@ class LocShareApp : Application() {
             Log.e(TAG, "Error initializing Firebase", e)
         }
     }
-} 
+}

@@ -29,92 +29,93 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun RegisterScreen(
     authViewModel: AuthViewModel,
-    onNavigateToLogin: () -> Unit
+    onNavigateToLogin: () -> Unit,
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
-    
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .align(Alignment.Center),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Center,
         ) {
             Text(
                 text = "Create Account",
-                style = MaterialTheme.typography.headlineMedium
+                style = MaterialTheme.typography.headlineMedium,
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
-            
+
             OutlinedTextField(
                 value = displayName,
                 onValueChange = { displayName = it },
                 label = { Text("Display Name") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             authViewModel.errorMessage?.let { error ->
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    modifier = Modifier.padding(vertical = 8.dp),
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Button(
-                onClick = { 
+                onClick = {
                     authViewModel.signUp(email, password, displayName)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = authViewModel.authState != AuthState.LOADING
+                enabled = authViewModel.authState != AuthState.LOADING,
             ) {
                 Text("Sign Up")
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             TextButton(
-                onClick = onNavigateToLogin
+                onClick = onNavigateToLogin,
             ) {
                 Text("Already have an account? Sign In")
             }
         }
-        
+
         if (authViewModel.authState == AuthState.LOADING) {
             CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier.align(Alignment.Center),
             )
         }
     }
-} 
+}
