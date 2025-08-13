@@ -42,7 +42,7 @@ class FirebaseLocationRepository {
             )
 
         Log.d(TAG, "Attempting to send location: $locationData for user: $userId")
-        Log.d(TAG, "Database reference path: ${locationsRef.path}")
+        Log.d(TAG, "Database reference: $locationsRef")
 
         locationsRef
             .child(userId)

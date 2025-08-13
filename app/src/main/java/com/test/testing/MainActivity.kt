@@ -18,9 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -126,47 +124,58 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // Main app content when authenticated
                     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        when (currentScreen) {
-                            Screen.MAP -> {
-                                MapScreen(
-                                    currentLocation = currentLocation,
-                                    allLocations = allLocations,
-                                    onMyLocationClick = {
-                                        // Check permissions before starting location updates
-                                        if (hasLocationPermissions()) {
-                                            startLocationUpdates()
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                        ) {
+                            when (currentScreen) {
+                                Screen.MAP -> {
+                                    MapScreen(
+                                        currentLocation = currentLocation,
+                                        allLocations = allLocations,
+                                        onMyLocationClick = {
+                                            // Check permissions before starting location updates
+                                            if (hasLocationPermissions()) {
+                                                startLocationUpdates()
+                                                friendToFocus = null
+                                                shouldCenterOnMyLocation = true
+                                            } else {
+                                                checkLocationPermissions()
+                                            }
+                                        },
+                                        onSignOut = { authViewModel.signOut() },
+                                        onNavigateToFriends = { currentScreen = Screen.FRIENDS },
+                                        friendToFocus = friendToFocus,
+                                        shouldCenterOnMyLocation = shouldCenterOnMyLocation,
+                                        onLocationCentered = { shouldCenterOnMyLocation = false },
+                                    )
+                                }
+
+                                Screen.FRIENDS -> {
+                                    FriendListScreen(
+                                        friendRepository = friendRepository,
+                                        onNavigateToAddFriend = {
+                                            currentScreen = Screen.ADD_FRIEND
+                                        },
+                                        onNavigateBack = {
                                             friendToFocus = null
-                                            shouldCenterOnMyLocation = true
-                                        } else {
-                                            checkLocationPermissions()
-                                        }
-                                    },
-                                    onSignOut = { authViewModel.signOut() },
-                                    onNavigateToFriends = { currentScreen = Screen.FRIENDS },
-                                    friendToFocus = friendToFocus,
-                                    shouldCenterOnMyLocation = shouldCenterOnMyLocation,
-                                    onLocationCentered = { shouldCenterOnMyLocation = false },
-                                )
-                            }
-                            Screen.FRIENDS -> {
-                                FriendListScreen(
-                                    friendRepository = friendRepository,
-                                    onNavigateToAddFriend = { currentScreen = Screen.ADD_FRIEND },
-                                    onNavigateBack = {
-                                        friendToFocus = null
-                                        currentScreen = Screen.MAP
-                                    },
-                                    onViewFriendLocation = { userId ->
-                                        friendToFocus = userId
-                                        currentScreen = Screen.MAP
-                                    },
-                                )
-                            }
-                            Screen.ADD_FRIEND -> {
-                                AddFriendScreen(
-                                    friendRepository = friendRepository,
-                                    onNavigateBack = { currentScreen = Screen.FRIENDS },
-                                )
+                                            currentScreen = Screen.MAP
+                                        },
+                                        onViewFriendLocation = { userId ->
+                                            friendToFocus = userId
+                                            currentScreen = Screen.MAP
+                                        },
+                                    )
+                                }
+
+                                Screen.ADD_FRIEND -> {
+                                    AddFriendScreen(
+                                        friendRepository = friendRepository,
+                                        onNavigateBack = { currentScreen = Screen.FRIENDS },
+                                    )
+                                }
                             }
                         }
                     }
@@ -214,6 +223,7 @@ class MainActivity : ComponentActivity() {
                 startLocationUpdates()
                 startBackgroundLocationService()
             }
+
             else -> {
                 // Request basic location permissions first (background location must be requested separately)
                 val permissions =
@@ -242,6 +252,7 @@ class MainActivity : ComponentActivity() {
                     arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                 )
             }
+
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
                 // Redirect users to app settings to allow "Allow all the time"
                 val intent =
@@ -305,14 +316,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendLocationToServer(location: Location) {
-        Log.d("MainActivity", "Sending location to server: lat=${location.latitude}, lng=${location.longitude}")
+        Log.d(
+            "MainActivity",
+            "Sending location to server: lat=${location.latitude}, lng=${location.longitude}",
+        )
         locationRepository.sendLocationUpdate(location) { success, message ->
             Log.d("MainActivity", "Location update result: success=$success, message=$message")
             if (success) {
                 fetchAllLocations() // Fetch all locations after successfully updating our location
             } else {
                 runOnUiThread {
-                    Toast.makeText(this, "Location update failed: $message", Toast.LENGTH_SHORT).show()
+                    Toast
+                        .makeText(this, "Location update failed: $message", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         }
@@ -420,7 +436,7 @@ fun MapScreen(
                 ),
         ) {
             // Show markers for all users from Firebase
-            allLocations.forEach { (userId, locationData) ->
+            allLocations.forEach { (_, locationData) ->
                 val position = LatLng(locationData.latitude, locationData.longitude)
                 Marker(
                     state = MarkerState(position = position),
