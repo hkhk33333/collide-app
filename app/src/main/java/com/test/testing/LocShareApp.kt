@@ -2,8 +2,8 @@ package com.test.testing
 
 import android.app.Application
 import android.util.Log
-import com.google.firebase.ktx.Firebase
-import com.google.firebase.ktx.initialize
+import com.google.firebase.Firebase
+import com.google.firebase.initialize
 
 class LocShareApp : Application() {
     private val TAG = "LocShareApp"
