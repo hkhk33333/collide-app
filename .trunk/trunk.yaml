@@ -42,14 +42,33 @@ actions:
     - commitizen
     - commitlint
     - git-blame-ignore-revs
-    - npm-check-pre-push
-    - submodule-init-update
     - trufflehog-pre-commit
+    - trunk-fmt-pre-commit
     - trunk-check-pre-commit
     - trunk-announce
     - trunk-check-pre-push
-    - trunk-fmt-pre-commit
     - trunk-upgrade-available
+    - android-lint-pre-commit
+    - gradle-test-pre-push
+    - gradle-build-pre-push
   definitions:
     - id: commitizen
       packages_file: ${workspace}/.trunk/commitizen/package.json
+    - id: android-lint-pre-commit
+      display_name: Android Lint
+      description: Run Android lint checks before commit
+      run: ./gradlew lint
+      triggers:
+        - git_hooks: [pre-commit]
+    - id: gradle-test-pre-push
+      display_name: Gradle Tests
+      description: Run unit tests before push
+      run: ./gradlew test
+      triggers:
+        - git_hooks: [pre-push]
+    - id: gradle-build-pre-push
+      display_name: Gradle Build
+      description: Verify project builds before push
+      run: ./gradlew build -x test
+      triggers:
+        - git_hooks: [pre-push]
