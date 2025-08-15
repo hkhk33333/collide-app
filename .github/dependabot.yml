@@ -1,3 +1,5 @@
+# Note: Time values are quoted because Dependabot uses YAML 1.1 parsing
+# where 09:00 would be treated as a sexagesimal number without quotes
 version: 2
 updates:
   # Enable version updates for Gradle dependencies
@@ -6,7 +8,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: 09:00
+      time: "09:00"  # yamllint disable-line rule:quoted-strings
       timezone: UTC
     open-pull-requests-limit: 5
     reviewers:
@@ -64,7 +66,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: 09:00
+      time: "09:00"  # yamllint disable-line rule:quoted-strings
       timezone: UTC
     open-pull-requests-limit: 3
     reviewers:
