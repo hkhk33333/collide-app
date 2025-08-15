@@ -1,0 +1,49 @@
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+config:
+  validation: true
+
+comments:
+  active: true
+
+style:
+  active: true
+  MagicNumber:
+    active: false # Android UI uses many numeric constants (padding, sizes, animation durations)
+  MaxLineLength:
+    active: true
+    maxLineLength: 140 # Increased from default 120 to accommodate Compose modifier chains
+  WildcardImport:
+    active: false # Kotlin style guide allows wildcards for common packages (kotlinx.*, androidx.compose.*)
+  UnusedImports:
+    active: true # Keep this active to clean up unused imports automatically
+
+formatting:
+  active: false # Disabled: ktlint version conflict (detekt 0.50.0 vs trunk 1.7.1)
+  # Will re-enable when detekt updates to ktlint 1.x or later
+  # See: https://github.com/detekt/detekt/discussions/5997
+
+complexity:
+  active: true
+  LongMethod:
+    active: false # Compose UI functions can be naturally long due to declarative nature
+  LongParameterList:
+    active: false # Compose functions often need many parameters for customization and flexibility
+
+naming:
+  active: true
+  FunctionNaming:
+    active: false # Conflicts with @Composable PascalCase convention (LoginScreen, RegisterScreen, etc.)
+  MatchingDeclarationName:
+    active: false # Android allows naming flexibility (e.g., MainActivity class in MainActivity.kt file)
+
+performance:
+  active: true
+
+potential-bugs:
+  active: true
+
+exceptions:
+  active: true

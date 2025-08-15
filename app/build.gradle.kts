@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
     alias(libs.plugins.kover)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -77,6 +78,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    detektPlugins(libs.detekt.formatting)
 }
 
 kover {
@@ -94,5 +97,23 @@ kover {
                 onCheck = false
             }
         }
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("${project.rootDir}/detekt.yml"))
+    ignoreFailures = true
+    autoCorrect = true
+}
+
+// Ensure CI artifact uploads have reports available
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        sarif.required.set(true) // enables trunk to catch detekt issues when running trunk check
+        txt.required.set(false)
     }
 }
