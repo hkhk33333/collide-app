@@ -1,5 +1,50 @@
 # Development Guide
 
+## Getting Started
+
+### Initial Setup
+
+1. **Clone and open the project**:
+
+   ```bash
+   git clone https://github.com/hkhk33333/locshare.git
+   cd locshare
+   ```
+
+2. **Setup Trunk CLI**:
+
+   ```bash
+   # Install Trunk CLI globally
+   curl https://get.trunk.io -fsSL | bash
+
+   # Setup trunk for this project (downloads tools and installs git hooks)
+   trunk install
+   ```
+
+   **Alternative for VS Code users**:
+   - Install the Trunk extension in VS Code
+   - Extension will detect `.trunk/trunk.yaml` and help with linting/formatting in the editor
+
+3. **Verify setup**:
+   ```bash
+   ./.trunk/tools/trunk --version
+   ./.trunk/tools/trunk check --sample  # Test linters
+   ```
+
+### Git Hooks Setup
+
+Trunk automatically manages git hooks for:
+
+- **Pre-commit**: Formatting (trunk-fmt), linting (trunk-check), secret scanning (trufflehog)
+- **Commit-msg**: Emoji format validation (commitlint), commitizen prompts
+- **Pre-push**: Additional checks (trunk-check-pre-push), npm security checks
+
+If hooks get out of sync, run:
+
+```bash
+./.trunk/tools/trunk git-hooks sync
+```
+
 ## Local Tooling
 
 - Trunk CLI manages linters, formatters, and hooks
@@ -11,6 +56,30 @@
 - Commitizen (Gitmoji) for commits
   - Run `gt create` or `gt modify` and follow the prompts
   - Emoji-first format is validated by `commitlint.config.js`
+
+## Commit Message Format
+
+Two formats are accepted (both require emoji):
+
+**Option A - Emoji-first** (current default):
+
+- Format: `emoji (scope): description`
+- Example: `🐛 (auth): fix login validation`
+- Example: `✨ add user profile feature`
+
+**Option B - Conventional with emoji**:
+
+- Format: `type(scope): emoji description`
+- Example: `fix(auth): 🐛 resolve login issue`
+- Example: `feat: ✨ add user profile feature`
+- Note: Requires config change to enable conventional mode
+
+For emoji reference, see [gitmoji.dev](https://gitmoji.dev)
+
+**How to commit**:
+
+- Use `gt create`/`gt modify` for interactive emoji selection
+- Direct `git commit` messages must match one of the formats above
 
 ## Running Locally
 
