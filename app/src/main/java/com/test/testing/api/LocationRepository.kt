@@ -7,7 +7,10 @@ import retrofit2.Callback
 import retrofit2.Response
 
 class LocationRepository {
-    private val TAG = "LocationRepository"
+    companion object {
+        private const val TAG = "LocationRepository"
+    }
+
     private val locationApiService = ApiClient.locationApiService
 
     fun sendLocationUpdate(

@@ -16,9 +16,11 @@ import com.test.testing.api.FirebaseLocationRepository
 import java.util.*
 
 class LocationService : Service() {
-    private val TAG = "LocationService"
-    private val NOTIFICATION_ID = 1
-    private val CHANNEL_ID = "LocationServiceChannel"
+    companion object {
+        private const val TAG = "LocationService"
+        private const val NOTIFICATION_ID = 1
+        private const val CHANNEL_ID = "LocationServiceChannel"
+    }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
