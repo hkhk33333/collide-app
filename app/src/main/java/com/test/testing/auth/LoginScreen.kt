@@ -67,7 +67,7 @@ fun LoginScreen(
                     val account = task.getResult(ApiException::class.java)
                     authViewModel.signInWithGoogle(account)
                 } catch (e: ApiException) {
-                    // Handle error
+                    authViewModel.errorMessage = "Google sign-in failed: ${e.message}"
                 }
             }
         }
