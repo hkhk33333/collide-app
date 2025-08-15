@@ -1,0 +1,79 @@
+version: 2
+updates:
+  # Enable version updates for Gradle dependencies
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: 09:00
+      timezone: UTC
+    open-pull-requests-limit: 5
+    reviewers:
+      - inventrohyder
+    assignees:
+      - inventrohyder
+    commit-message:
+      prefix: ":arrow_up:"
+      include: scope
+    labels:
+      - dependencies
+      - gradle
+    ignore:
+      # Ignore major version updates for stable dependencies
+      - dependency-name: androidx.compose:compose-bom
+        update-types: [version-update:semver-major]
+      - dependency-name: com.google.firebase:firebase-bom
+        update-types: [version-update:semver-major]
+    groups:
+      androidx:
+        patterns:
+          - androidx*
+        update-types:
+          - minor
+          - patch
+      compose:
+        patterns:
+          - androidx.compose*
+        update-types:
+          - minor
+          - patch
+      firebase:
+        patterns:
+          - com.google.firebase*
+        update-types:
+          - minor
+          - patch
+      google-services:
+        patterns:
+          - com.google.android.gms*
+          - com.google.gms*
+        update-types:
+          - minor
+          - patch
+      kotlin:
+        patterns:
+          - "*kotlin*"
+        update-types:
+          - minor
+          - patch
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: 09:00
+      timezone: UTC
+    open-pull-requests-limit: 3
+    reviewers:
+      - inventrohyder
+    assignees:
+      - inventrohyder
+    commit-message:
+      prefix: ":arrow_up:"
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
