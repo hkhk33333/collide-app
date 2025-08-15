@@ -1,45 +1,63 @@
 # Contributing
 
-This project uses Trunk to manage code quality (linters, formatters, security checks) and Git hooks. This guide explains our setup, why specific hooks are enabled, how CI runs, and how to work around Commitizen hook issues.
+This project uses Trunk for code quality (linting, formatting, security)
+and git hooks. This guide covers setup, development workflow, and commit standards.
 
-## Trunk overview
+## Development Setup
 
-- Install/upgrade everything: `./.trunk/tools/trunk upgrade -y`
-- Run all checks locally: `./.trunk/tools/trunk check`
-- Format code: `./.trunk/tools/trunk fmt`
-- See enabled actions/hooks: `./.trunk/tools/trunk actions list`
+1. **Initial setup**: `trunk install` (installs tools and git hooks)
+2. **Format code**: `trunk fmt`
+3. **Check code**: `trunk check`
+4. **Upgrade tools**: `trunk upgrade`
 
-Configuration lives in `.trunk/trunk.yaml`. Trunk plugins are checked in under `.trunk/plugins/` and tools are shimmed under `.trunk/tools/`.
-Commit message configs live at the repo root:
+**Note**: Use `trunk` if installed globally, or `./.trunk/tools/trunk` for local
+installation. VS Code users can use the Trunk extension for editor integration.
 
-- `commitlint.config.js` – validates messages and supports Gitmoji
-- `.czrc` – Commitizen adapter (`cz-emoji`)
+Configuration: `.trunk/trunk.yaml` | Commit validation: `commitlint.config.js`
+
+**Resources:** [Trunk Docs](https://docs.trunk.io) | [Trunk VS Code Extension](https://marketplace.visualstudio.com/items?itemName=trunk.io)
+
+## Android Development
+
+**Build & Test:**
+
+- Build: `./gradlew assembleDebug`
+- Unit tests: `./gradlew testDebugUnitTest`
+- Coverage: `./gradlew koverHtmlReport`
+- Instrumentation tests: `./gradlew connectedDebugAndroidTest` (requires device/emulator)
+
+**Code Quality:**
+
+- Android Lint: `./gradlew lintDebug`
+- Detekt analysis: `./gradlew detekt` ([Detekt Rules](https://detekt.dev/docs/rules/comments))
 
 ## Git hooks managed by Trunk
 
-These hooks run automatically on their respective Git events. We enable only what is useful for this repo and fast enough for local workflows.
+Current git hooks (automatically managed by Trunk):
 
-Enabled actions (hooks) and why:
-
-- `trunk-fmt-pre-commit` (pre-commit): Runs `trunk fmt` to auto-format changes. Keeps diffs clean.
-- `trunk-check-pre-commit` (pre-commit): Runs `trunk check` on staged changes. Catches issues early.
-- `trunk-check-pre-push` (pre-push): Runs `trunk check` before pushing. Safety net for missed local checks.
-- `commitlint` (commit-msg): Validates commit messages. Configured to accept Gitmoji formats and optional Conventional Commits.
-- `trufflehog-pre-commit` (pre-commit): Scans for secrets in staged files.
-- `git-blame-ignore-revs` (post-checkout): Keeps blame useful by ignoring specified bulk-change commits.
-- `submodule-init-update` (post-merge/checkout): Keeps submodules up to date if used.
-- `npm-check-pre-push` (pre-push): Notifies if Node deps are stale (harmless for non-Node repos).
-- `trunk-announce`, `trunk-upgrade-available` (background): Quality-of-life notices for Trunk.
+- `trunk-fmt-pre-commit` (pre-commit): Auto-formats code before commits
+- `trufflehog-pre-commit` (pre-commit): Scans for secrets in staged files
+- `trunk-check-pre-commit` (pre-commit): Runs linters on staged changes
+- `android-lint-pre-commit` (pre-commit): Android-specific lint checks
+- `trunk-check-pre-push` (pre-push): Additional linting before push
+- `gradle-test-pre-push` (pre-push): Runs unit tests before push
+- `gradle-build-pre-push` (pre-push): Verifies project builds before push
+- `commitlint` (commit-msg): Validates Gitmoji commit message format
+- `git-blame-ignore-revs` (post-checkout): Keeps git blame useful
+- `trunk-announce`, `trunk-upgrade-available` (background): Trunk notifications
 
 Commitizen:
 
-- `commitizen` (prepare-commit-msg): Enabled with the `cz-emoji` adapter for an emoji-first prompt.
+- `commitizen` (prepare-commit-msg): Enabled with the `cz-emoji` adapter for an
+  emoji-first prompt.
 
-You can temporarily bypass hooks with standard Git flags: `git commit --no-verify` and `git push --no-verify` (avoid in normal workflows).
+You can temporarily bypass hooks with standard Git flags: `git commit --no-verify`
+and `git push --no-verify` (avoid in normal workflows).
 
 ## Commit messages (Gitmoji + Commitizen)
 
-Commitlint validates commit messages on the `commit-msg` hook. We support both Gitmoji styles:
+Commitlint validates commit messages on the `commit-msg` hook.
+We support both Gitmoji styles:
 
 - Gitmoji default (emoji-first): `:emoji: (scope)?: subject`
   - Example: `:rotating_light: (project) setup trunk`
@@ -54,15 +72,18 @@ Toggle conventional style by adding to `package.json`:
 }
 ```
 
-Gitmoji reference: [gitmoji.dev](https://gitmoji.dev)
+**Resources:** [Gitmoji Reference](https://gitmoji.dev) | [Commitlint Rules](https://commitlint.js.org/)
 
 ## Commitizen configuration
 
 - `.czrc` uses the `cz-emoji` adapter:
+
   ```json
   { "path": "cz-emoji" }
   ```
+
 - Trunk installs the adapter for the commit hook via an action override:
+
   ```yaml
   actions:
     enabled:
@@ -73,7 +94,9 @@ Gitmoji reference: [gitmoji.dev](https://gitmoji.dev)
       - id: commitizen
         packages_file: ${workspace}/.trunk/commitizen/package.json
   ```
+
 - Adapter dependencies are declared in `/.trunk/commitizen/package.json`:
+
   ```json
   {
     "private": true,
@@ -81,58 +104,42 @@ Gitmoji reference: [gitmoji.dev](https://gitmoji.dev)
   }
   ```
 
-## Using `gt modify`
+## Graphite Workflow (Stacked PRs)
 
-- Use `gt modify` and follow the Commitizen prompts.
-- Or pass a message explicitly. Both formats are accepted by commitlint:
-  - Emoji-first: `gt modify -m ":rotating_light: (project) setup trunk"`
-  - Conventional + emoji: `gt modify -m "lint(project) :rotating_light: setup trunk"`
+We use **Graphite** for stacked PR development:
+[Graphite Docs](https://graphite.dev/docs) | [Stacked PRs Guide](https://graphite.dev/docs/stacking)
 
-## CI: GitHub Actions
+**Basic workflow:**
 
-We run Trunk in CI using official actions. See `.github/workflows/`:
+- `gt create` - Create new branch and commit
+- `gt modify` - Amend current commit (with Gitmoji prompts)
+- `gt submit` - Create/update PR for current stack
+- `gt sync` - Sync with remote and restack
 
-- `trunk.yml`: Runs on push and pull_request, posts annotations on failures.
-- `trunk-upgrade.yml`: Nightly job that opens a PR to upgrade Trunk linters/tools.
-- `android-ci.yml`: Android CI with unit tests (Kover coverage), Android Lint, Detekt (push/PR; path-gated via `dorny/paths-filter`), instrumentation tests disabled on PR/push (Linux emulator instability; macOS minutes cost). Nightly runs include a change-check gate and an optional full emulator matrix (API 29/30/33) that runs only on schedule when the last commit changed.
+**Stacking:**
 
-No extra secrets are required; the default `GITHUB_TOKEN` is sufficient for annotations and upgrade PRs.
+- `gt branch -c feature-2` - Create branch stacked on current
+- `gt up`/`gt down` - Navigate between stack levels
+- `gt restack` - Rebase entire stack after changes
 
-## Dependabot
+**Commit messages** (both accepted):
 
-- Location: `.github/dependabot.yml`
-- Gradle updates:
-  - Schedule: weekly, Monday, 09:00 UTC
-  - Open PR limit: 5
-  - Reviewers/assignees: `inventrohyder`
-  - Labels: `dependencies`, `gradle`
-  - Commit message: prefix `:arrow_up:` with scope
-  - Groups: `androidx`, `compose`, `firebase`, `google-services`, `kotlin` (minor/patch grouped)
-  - Ignored majors: `androidx.compose:compose-bom`, `com.google.firebase:firebase-bom`
-- GitHub Actions updates:
-  - Schedule: weekly, Monday, 09:00 UTC
-  - Open PR limit: 3
-  - Reviewers/assignees: `inventrohyder`
-  - Labels: `dependencies`, `github-actions`
+- Emoji-first: `gt modify -m ":bug: fix login validation"`
+- Conventional: `gt modify -m "fix: :bug: resolve login issue"`
 
-## Upgrading Trunk, linters, and runtimes
+## CI Pipeline
 
-- Upgrade everything to latest validated versions:
-  - `./.trunk/tools/trunk upgrade -y check plugins runtimes tools cli`
-- Versions are pinned in `.trunk/trunk.yaml` after upgrades. Runtimes are kept to stable major versions per plugin channel.
+**PR/Push:** Unit tests, Android Lint, instrumentation tests (API 30), Detekt analysis
+**Nightly:** Full emulator matrix (API 29/30/33) if main branch changed
+**Auto-upgrades:** Trunk tools upgraded nightly via PR
+
+## Dependency Updates
+
+**Dependabot:** Weekly Gradle + GitHub Actions updates (Mondays 09:00 UTC)
+**Trunk:** Nightly linter/tool upgrades via automated PR
 
 ## Troubleshooting
 
-- Commitizen breaks `git commit --amend` or tooling that re-invokes `git commit`:
-  - Ensure `commitizen` action is disabled in `.trunk/trunk.yaml`.
-  - Use manual composer (`./.trunk/tools/commitizen` or `npx commitizen`).
-- Hooks not running:
-  - Re-sync: `./.trunk/tools/trunk git-hooks sync`
-  - Verify hooks path: `git config core.hooksPath` should point to Trunk’s cache directory.
-- Slow checks:
-  - Use `./.trunk/tools/trunk check --filter <path or linter>` locally to scope runs.
-
-## FAQ
-
-- Why not enable every possible hook? We enable what adds value without disrupting common flows. Hooks that block amends or are redundant for this repo are disabled.
-- Can I run Trunk on all files locally? Yes: `./.trunk/tools/trunk check --all`.
+**Hooks not running:** `trunk git-hooks sync`
+**Slow checks:** `trunk check --filter <path>` to scope runs
+**Bypass hooks:** `git commit --no-verify` (avoid in normal workflow)
