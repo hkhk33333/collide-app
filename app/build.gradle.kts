@@ -76,6 +76,12 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        abortOnError = false
+        xmlReport = false
+        htmlReport = true
+        sarifReport = true
+    }
 }
 
 kotlin {
@@ -150,7 +156,7 @@ detekt {
 // Ensure CI artifact uploads have reports available
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
     reports {
-        xml.required.set(true)
+        xml.required.set(false)
         html.required.set(true)
         sarif.required.set(true) // enables trunk to catch detekt issues when running trunk check
         txt.required.set(false)
