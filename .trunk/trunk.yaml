@@ -2,7 +2,7 @@
 # To learn more about the format of this file, see https://docs.trunk.io/reference/trunk-yaml
 version: 0.1
 cli:
-  version: 1.24.0
+  version: 1.25.0
 # Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
 plugins:
   sources:
@@ -19,15 +19,17 @@ runtimes:
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
-    - trufflehog-git@3.90.3
-    - checkov@3.2.461
+    - actionlint@1.7.7
     - git-diff-check
+    - gitleaks@8.28.0
     - ktlint@1.7.1
-    - prettier@3.6.2
+    - markdownlint@0.45.0
+    - osv-scanner@2.0.3
     - shellcheck@0.10.0
     - shfmt@3.6.0
     - taplo@0.9.3
-    - trufflehog@3.90.3
+    - trufflehog-git@3.90.5  # For the git-hooks
+    - trufflehog@3.90.5
     - yamllint@1.37.1
     - detekt-gradle@SYSTEM:
         direct_configs: [detekt.yml]
