@@ -29,6 +29,8 @@ lint:
     - taplo@0.9.3
     - trufflehog@3.90.3
     - yamllint@1.37.1
+    - detekt-gradle@SYSTEM:
+        direct_configs: [detekt.yml]
   # We vendor the Gradle wrapper script; it's third-party generated and not maintained here.
   # Ignore it for shellcheck to prevent false positives and noisy findings on non-project code.
   ignore:
