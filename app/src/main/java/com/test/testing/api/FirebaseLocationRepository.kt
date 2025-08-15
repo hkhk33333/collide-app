@@ -11,7 +11,10 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 
 class FirebaseLocationRepository {
-    private val TAG = "FirebaseLocationRepo"
+    companion object {
+        private const val TAG = "FirebaseLocationRepo"
+    }
+
     private val database = Firebase.database("https://locshare-93a7b-default-rtdb.europe-west1.firebasedatabase.app/")
     private val locationsRef = database.getReference("locations")
     private val usersRef = database.getReference("users")

@@ -12,7 +12,10 @@ import com.google.firebase.database.database
  * Repository to manage friend relationships in Firebase
  */
 class FriendRepository {
-    private val TAG = "FriendRepository"
+    companion object {
+        private const val TAG = "FriendRepository"
+    }
+
     private val auth = FirebaseAuth.getInstance()
     private val database = Firebase.database("https://locshare-93a7b-default-rtdb.europe-west1.firebasedatabase.app/")
     private val friendsRef = database.getReference("friendships")
@@ -134,9 +137,14 @@ class FriendRepository {
                     val friendships = mutableListOf<FriendshipModel>()
 
                     for (friendSnapshot in snapshot.children) {
-                        val friendId = friendSnapshot.key ?: continue
-                        val status = friendSnapshot.child("status").getValue(String::class.java) ?: continue
-                        val direction = friendSnapshot.child("direction").getValue(String::class.java) ?: continue
+                        val friendId = friendSnapshot.key
+                        val status = friendSnapshot.child("status").getValue(String::class.java)
+                        val direction = friendSnapshot.child("direction").getValue(String::class.java)
+
+                        if (friendId == null || status == null || direction == null) {
+                            continue
+                        }
+
                         val requestedAt = friendSnapshot.child("requestedAt").getValue(Long::class.java) ?: 0L
                         val updatedAt = friendSnapshot.child("updatedAt").getValue(Long::class.java) ?: 0L
 

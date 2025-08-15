@@ -6,7 +6,9 @@ import com.google.firebase.Firebase
 import com.google.firebase.initialize
 
 class LocShareApp : Application() {
-    private val TAG = "LocShareApp"
+    companion object {
+        private const val TAG = "LocShareApp"
+    }
 
     override fun onCreate() {
         super.onCreate()

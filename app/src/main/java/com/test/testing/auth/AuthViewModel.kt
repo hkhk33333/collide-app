@@ -12,8 +12,11 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 
 class AuthViewModel : ViewModel() {
+    companion object {
+        private const val TAG = "AuthViewModel"
+    }
+
     private val auth = FirebaseAuth.getInstance()
-    private val TAG = "AuthViewModel"
 
     var currentUser by mutableStateOf<FirebaseUser?>(null)
     var authState by mutableStateOf(AuthState.INITIAL)
