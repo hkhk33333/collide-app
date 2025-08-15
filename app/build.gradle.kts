@@ -1,3 +1,36 @@
+/**
+ * Java Configuration
+ * ==================
+ * Toolchain: Java 21 LTS | Build JVM: Varies (17+ required by Gradle 9) | Target: Java 21
+ * Configured: August 2025 (Gradle 9.0 upgrade)
+ *
+ * Definitions:
+ * - Toolchain: JVM used to compile code (Java 21, auto-downloaded if missing)
+ * - Build JVM: JVM running Gradle itself (min Java 17, not project-controlled)
+ * - Target: Bytecode compatibility (Java 21, could be lower if needed)
+ *
+ * Decision rationale:
+ * - Java 21 target: Current LTS (supported until 2029)
+ * - Not Java 22: Non-LTS with only 6 months support
+ * - Toolchain ensures consistent compilation across all developer machines
+ * - Detekt 1.23.8 constraint: Supports JVM targets up to 22
+ * - No desugaring needed: Project uses no Java 8+ APIs (java.time, streams, NIO)
+ *
+ * Note: While Gradle 9 requires Java 17+ to run, the target bytecode could be
+ * as low as Java 8 if needed for older Android devices. We use 21 for modern features.
+ *
+ * Desugaring: Disabled - enable if using java.time/streams/NIO:
+ * compileOptions.isCoreLibraryDesugaringEnabled = true
+ * dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4") }
+ *
+ * Upgrade path: Java 25 LTS (Sept 2025) when tooling supports it
+ *
+ * References:
+ * - https://developer.android.com/build/jdks
+ * - https://docs.gradle.org/current/userguide/toolchains.html
+ * - https://detekt.dev/docs/introduction/compatibility/
+ */
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +38,12 @@ plugins {
     id("com.google.gms.google-services")
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 android {
@@ -31,8 +70,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     buildFeatures {
         compose = true
@@ -41,7 +80,7 @@ android {
 
 kotlin {
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
 
