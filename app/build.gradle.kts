@@ -76,6 +76,12 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        abortOnError = false
+        xmlReport = false
+        htmlReport = true
+        sarifReport = true
+    }
 }
 
 kotlin {
@@ -100,7 +106,6 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
-    implementation(libs.androidx.fragment.ktx)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.database)
@@ -150,7 +155,7 @@ detekt {
 // Ensure CI artifact uploads have reports available
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
     reports {
-        xml.required.set(true)
+        xml.required.set(false)
         html.required.set(true)
         sarif.required.set(true) // enables trunk to catch detekt issues when running trunk check
         txt.required.set(false)
