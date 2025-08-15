@@ -94,8 +94,26 @@ We run Trunk in CI using official actions. See `.github/workflows/`:
 
 - `trunk.yml`: Runs on push and pull_request, posts annotations on failures.
 - `trunk-upgrade.yml`: Nightly job that opens a PR to upgrade Trunk linters/tools.
+- `android-ci.yml`: Android CI with unit tests (Kover coverage), Android Lint, Detekt (push/PR; path-gated via `dorny/paths-filter`), instrumentation tests disabled on PR/push (Linux emulator instability; macOS minutes cost). Nightly runs include a change-check gate and an optional full emulator matrix (API 29/30/33) that runs only on schedule when the last commit changed.
 
 No extra secrets are required; the default `GITHUB_TOKEN` is sufficient for annotations and upgrade PRs.
+
+## Dependabot
+
+- Location: `.github/dependabot.yml`
+- Gradle updates:
+  - Schedule: weekly, Monday, 09:00 UTC
+  - Open PR limit: 5
+  - Reviewers/assignees: `inventrohyder`
+  - Labels: `dependencies`, `gradle`
+  - Commit message: prefix `:arrow_up:` with scope
+  - Groups: `androidx`, `compose`, `firebase`, `google-services`, `kotlin` (minor/patch grouped)
+  - Ignored majors: `androidx.compose:compose-bom`, `com.google.firebase:firebase-bom`
+- GitHub Actions updates:
+  - Schedule: weekly, Monday, 09:00 UTC
+  - Open PR limit: 3
+  - Reviewers/assignees: `inventrohyder`
+  - Labels: `dependencies`, `github-actions`
 
 ## Upgrading Trunk, linters, and runtimes
 

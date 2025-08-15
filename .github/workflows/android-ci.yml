@@ -1,4 +1,13 @@
 name: Android CI
+# Pipeline summary:
+# - Triggers: push (main), pull_request (all branches), manual, and nightly schedule (02:00 UTC)
+# - Path gating: `detekt-paths` uses `dorny/paths-filter` to decide whether tests/lint/detekt should run
+# - Unit tests: build + test with Kover coverage, artifact reports uploaded
+# - Lint: Android Lint, artifact report uploaded
+# - Detekt: runs on push/PR only when Kotlin/Gradle paths changed; artifact uploaded
+# - Instrumentation tests: disabled on push/PR (Linux emulator instability; macOS cost). To enable, gate with
+#   `needs.detekt-paths.outputs.tests_should_run == 'true' && (github.event_name == 'pull_request' || github.event_name == 'push')`
+# - Nightly: change-check job prevents redundant nightly runs; optional full emulator matrix (API 29/30/33)
 
 on:
   push:
