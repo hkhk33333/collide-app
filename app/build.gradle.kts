@@ -58,6 +58,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
     }
 
     buildTypes {
@@ -67,6 +68,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
+        }
+        debug {
+            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
         }
     }
     compileOptions {
@@ -75,6 +80,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     lint {
         abortOnError = false
