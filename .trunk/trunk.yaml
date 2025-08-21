@@ -37,8 +37,7 @@ lint:
     - trufflehog-git@3.90.5 # For the git-hooks
     - trufflehog@3.90.5
     - yamllint@1.37.1
-    - detekt-gradle@SYSTEM:
-        direct_configs: [detekt.yml]
+    - detekt-gradle@SYSTEM
   # We vendor the Gradle wrapper script; it's third-party generated and not maintained here.
   # Ignore it for shellcheck to prevent false positives and noisy findings on non-project code.
   ignore:
