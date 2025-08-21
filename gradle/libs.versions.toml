@@ -1,5 +1,5 @@
 [versions]
-agp = "8.12.0"
+agp = "8.12.1"
 constraintlayout = "2.2.1"
 converterGson = "3.0.0"
 firebaseBom = "34.1.0"
