@@ -6,6 +6,17 @@ and git hooks. This guide covers setup, development workflow, and commit standar
 ## Development Setup
 
 1. **Initial setup**: `trunk install` (installs tools and git hooks)
+   - For detekt and Gradle tasks you need a system JDK 17+.
+     We use JDK 21 in our CI pipeline and recommend using the latest
+     LTS (21) or GA (24) for local development.
+     Gradle 9 requires Java 17+ to run.
+     See: [https://docs.gradle.org/9.0/userguide/compatibility.html#java](https://docs.gradle.org/9.0/userguide/compatibility.html#java)
+   - macOS: `brew install openjdk@21` and set `JAVA_HOME`
+     (e.g., `export JAVA_HOME=$(/usr/libexec/java_home -v21)`).
+   - Linux: install a JDK 17+ (e.g., `sudo apt-get install -y openjdk-21-jdk`) and
+     set `JAVA_HOME`.
+   - Windows: install a JDK 17+ (Temurin/Corretto) and ensure `JAVA_HOME` and `PATH`
+     are configured.
 2. **Format code**: `trunk fmt`
 3. **Check code**: `trunk check`
 4. **Upgrade tools**: `trunk upgrade`
@@ -29,7 +40,7 @@ Configuration: `.trunk/trunk.yaml` | Commit validation: `commitlint.config.js`
 **Code Quality:**
 
 - Android Lint: `./gradlew lintDebug`
-- Detekt analysis: `./gradlew detekt` ([Detekt Rules](https://detekt.dev/docs/rules/comments))
+- Detekt analysis: `./gradlew detekt` (requires JDK 17+; rules in `detekt.yml`)
 
 ## Git hooks managed by Trunk
 
@@ -142,4 +153,5 @@ We use **Graphite** for stacked PR development:
 
 **Hooks not running:** `trunk git-hooks sync`
 **Slow checks:** `trunk check --filter <path>` to scope runs
+**JDK required for detekt:** ensure Java 17+ is installed and `JAVA_HOME` is set
 **Bypass hooks:** `git commit --no-verify` (avoid in normal workflow)
