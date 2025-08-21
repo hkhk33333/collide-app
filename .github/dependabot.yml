@@ -75,3 +75,21 @@ updates:
     labels:
       - dependencies
       - github-actions
+
+  # Enable version updates for trunk commitizen custom npm dependencies
+  - package-ecosystem: npm
+    directory: /.trunk/commitizen
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00" # yamllint disable-line rule:quoted-strings
+      timezone: UTC
+    open-pull-requests-limit: 3
+    reviewers:
+      - inventrohyder
+    commit-message:
+      prefix: ":arrow_up:"
+      include: scope
+    labels:
+      - dependencies
+      - npm
