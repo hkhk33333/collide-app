@@ -18,7 +18,13 @@ runtimes:
     - python@3.13.3
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
+  disabled:
+    # We disable checkov because it is an infrastructure-as-code scanner,
+    # and this project does not contain any IaC files (e.g., Terraform, Dockerfile, Kubernetes).
+    # See https://www.checkov.io/1.Welcome/What%20is%20Checkov.html#:~:text=policies.-,Supported%20IaC%20types,Docker,-Custom for more details.
+    - checkov
   enabled:
+    - prettier@3.6.2
     - actionlint@1.7.7
     - git-diff-check
     - gitleaks@8.28.0
