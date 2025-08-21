@@ -8,7 +8,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:00"  # yamllint disable-line rule:quoted-strings
+      time: "09:00" # yamllint disable-line rule:quoted-strings
       timezone: UTC
     open-pull-requests-limit: 5
     reviewers:
@@ -66,7 +66,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "09:00"  # yamllint disable-line rule:quoted-strings
+      time: "09:00" # yamllint disable-line rule:quoted-strings
       timezone: UTC
     open-pull-requests-limit: 3
     reviewers:
