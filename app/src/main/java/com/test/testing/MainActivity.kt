@@ -31,6 +31,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +62,9 @@ import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
 import com.test.testing.auth.AuthNavigation
 import com.test.testing.auth.AuthViewModel
+import com.test.testing.discord.Constants
+import com.test.testing.discord.auth.AuthManager
+import com.test.testing.discord.ui.DiscordApp
 import com.test.testing.friends.AddFriendScreen
 import com.test.testing.friends.FriendListScreen
 import com.test.testing.friends.FriendRepository
@@ -90,93 +94,140 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions(),
         ) { permissions ->
-            val locationPermissionGranted =
-                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                    permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (!BuildConfig.USE_DISCORD_SYSTEM) {
+                // Handle permissions for Firebase System
+                val locationPermissionGranted =
+                    permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                        permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
 
-            if (locationPermissionGranted) {
-                startLocationUpdates()
-                startBackgroundLocationService()
+                if (locationPermissionGranted) {
+                    startLocationUpdates()
+                    startBackgroundLocationService()
 
-                // Request background location permission if not granted
-                // Android 10 (API 29) only: request via launcher; Android 11+ requires Settings
-                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !hasBackgroundLocationPermission()) {
-                    requestBackgroundLocationPermission()
+                    // Request background location permission if not granted
+                    // Android 10 (API 29) only: request via launcher; Android 11+ requires Settings
+                    if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && !hasBackgroundLocationPermission()) {
+                        requestBackgroundLocationPermission()
+                    }
                 }
             }
+            // Discord system handles permissions internally via its Composable
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
+        if (BuildConfig.USE_DISCORD_SYSTEM) {
+            // Initialize Discord singletons
+            AuthManager.getInstance(this)
+            // ADDED: Handle intent if the app is launched from the redirect
+            handleAuthRedirect(intent)
+        }
+
         enableEdgeToEdge()
         setContent {
-            val authViewModel: AuthViewModel = viewModel()
-
             TestingTheme {
-                AuthNavigation(
-                    authViewModel = authViewModel,
-                    onAuthenticated = {
-                        // Once authenticated, request location permissions
-                        checkLocationPermissions()
-                    },
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    if (BuildConfig.USE_DISCORD_SYSTEM) {
+                        // --- DISCORD SYSTEM ---
+                        DiscordApp()
+                    } else {
+                        // --- FIREBASE SYSTEM (Existing code) ---
+                        FirebaseApp()
+                    }
+                }
+            }
+        }
+    }
+
+    // ADDED: Override onNewIntent to handle the redirect when the app is already open
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (BuildConfig.USE_DISCORD_SYSTEM) {
+            handleAuthRedirect(intent)
+        }
+    }
+
+    // ADDED: A helper function to process the redirect intent
+    private fun handleAuthRedirect(intent: Intent?) {
+        val uri = intent?.data
+        if (uri != null && uri.toString().startsWith(Constants.CALLBACK_URL)) {
+            val code = uri.getQueryParameter("code")
+            if (code != null) {
+                Log.d("MainActivity", "Received auth code from redirect: $code")
+                AuthManager.instance.handleAuthCallback(code)
+            } else {
+                Log.e("MainActivity", "Authorization code not found in callback URI")
+            }
+        }
+    }
+
+    // --- All functions below are for the FIREBASE SYSTEM only ---
+
+    @Composable
+    private fun FirebaseApp() {
+        val authViewModel: AuthViewModel = viewModel()
+        AuthNavigation(
+            authViewModel = authViewModel,
+            onAuthenticated = {
+                // Once authenticated, request location permissions
+                checkLocationPermissions()
+            },
+        ) {
+            // Main app content when authenticated
+            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
                 ) {
-                    // Main app content when authenticated
-                    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(innerPadding),
-                        ) {
-                            when (currentScreen) {
-                                Screen.MAP -> {
-                                    MapScreen(
-                                        currentLocation = currentLocation,
-                                        allLocations = allLocations,
-                                        onMyLocationClick = {
-                                            // Check permissions before starting location updates
-                                            if (hasLocationPermissions()) {
-                                                startLocationUpdates()
-                                                friendToFocus = null
-                                                shouldCenterOnMyLocation = true
-                                            } else {
-                                                checkLocationPermissions()
-                                            }
-                                        },
-                                        onSignOut = { authViewModel.signOut() },
-                                        onNavigateToFriends = { currentScreen = Screen.FRIENDS },
-                                        friendToFocus = friendToFocus,
-                                        shouldCenterOnMyLocation = shouldCenterOnMyLocation,
-                                        onLocationCentered = { shouldCenterOnMyLocation = false },
-                                    )
-                                }
+                    when (currentScreen) {
+                        Screen.MAP -> {
+                            MapScreen(
+                                currentLocation = currentLocation,
+                                allLocations = allLocations,
+                                onMyLocationClick = {
+                                    // Check permissions before starting location updates
+                                    if (hasLocationPermissions()) {
+                                        startLocationUpdates()
+                                        friendToFocus = null
+                                        shouldCenterOnMyLocation = true
+                                    } else {
+                                        checkLocationPermissions()
+                                    }
+                                },
+                                onSignOut = { authViewModel.signOut() },
+                                onNavigateToFriends = { currentScreen = Screen.FRIENDS },
+                                friendToFocus = friendToFocus,
+                                shouldCenterOnMyLocation = shouldCenterOnMyLocation,
+                                onLocationCentered = { shouldCenterOnMyLocation = false },
+                            )
+                        }
 
-                                Screen.FRIENDS -> {
-                                    FriendListScreen(
-                                        friendRepository = friendRepository,
-                                        onNavigateToAddFriend = {
-                                            currentScreen = Screen.ADD_FRIEND
-                                        },
-                                        onNavigateBack = {
-                                            friendToFocus = null
-                                            currentScreen = Screen.MAP
-                                        },
-                                        onViewFriendLocation = { userId ->
-                                            friendToFocus = userId
-                                            currentScreen = Screen.MAP
-                                        },
-                                    )
-                                }
+                        Screen.FRIENDS -> {
+                            FriendListScreen(
+                                friendRepository = friendRepository,
+                                onNavigateToAddFriend = {
+                                    currentScreen = Screen.ADD_FRIEND
+                                },
+                                onNavigateBack = {
+                                    friendToFocus = null
+                                    currentScreen = Screen.MAP
+                                },
+                                onViewFriendLocation = { userId ->
+                                    friendToFocus = userId
+                                    currentScreen = Screen.MAP
+                                },
+                            )
+                        }
 
-                                Screen.ADD_FRIEND -> {
-                                    AddFriendScreen(
-                                        friendRepository = friendRepository,
-                                        onNavigateBack = { currentScreen = Screen.FRIENDS },
-                                    )
-                                }
-                            }
+                        Screen.ADD_FRIEND -> {
+                            AddFriendScreen(
+                                friendRepository = friendRepository,
+                                onNavigateBack = { currentScreen = Screen.FRIENDS },
+                            )
                         }
                     }
                 }
@@ -211,15 +262,7 @@ class MainActivity : ComponentActivity() {
 
     private fun checkLocationPermissions() {
         when {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-            ) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                // Permission is granted
+            hasLocationPermissions() -> {
                 startLocationUpdates()
                 startBackgroundLocationService()
             }
@@ -353,19 +396,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        locationCallback?.let {
-            fusedLocationClient.removeLocationUpdates(it)
+        if (!BuildConfig.USE_DISCORD_SYSTEM) {
+            locationCallback?.let {
+                fusedLocationClient.removeLocationUpdates(it)
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        if (locationCallback != null) {
+        if (!BuildConfig.USE_DISCORD_SYSTEM && locationCallback != null) {
             startLocationUpdates()
         }
     }
 }
 
+// All Composables below are for the FIREBASE SYSTEM only
 @Composable
 fun MapScreen(
     currentLocation: Location?,
@@ -437,7 +483,8 @@ fun MapScreen(
                 Marker(
                     state = MarkerState(position = position),
                     title = locationData.displayName,
-                    snippet = "Last updated: ${java.util.Date(locationData.timestamp)}",
+                    // MODIFIED: Proactively fixed potential crash by converting Double to Long
+                    snippet = "Last updated: ${java.util.Date(locationData.timestamp.toLong())}",
                 )
             }
         }

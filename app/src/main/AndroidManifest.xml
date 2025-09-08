@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
 
     <application
         android:name=".LocShareApp"
@@ -29,13 +31,43 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- THIS INTENT FILTER WAS MOVED HERE -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="redirect"
+                    android:scheme="mysku" />
+            </intent-filter>
         </activity>
-        
+
+        <!-- THE AuthCallbackActivity IS NOW GONE -->
+
+        <!-- Service for Firebase system -->
         <service
             android:name=".LocationService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <!-- Service for Discord system -->
+        <service
+            android:name=".discord.location.DiscordLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- FCM Service for Discord system notifications -->
+        <service
+            android:name=".discord.notifications.MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}"/>

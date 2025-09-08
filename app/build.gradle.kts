@@ -39,6 +39,7 @@ plugins {
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
     alias(libs.plugins.google.android.libraries.mapsplatform.secrets.control.plugin)
+    id("kotlin-parcelize")
 }
 
 java {
@@ -59,6 +60,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Default build config for production/standard builds
         buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
     }
 
@@ -72,7 +74,15 @@ android {
             buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
         }
         debug {
-            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
+            // Firebase system for standard debug builds
+            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "true") // Enable for debug
+        }
+        // New build type specifically for debugging the Discord system
+        create("discordDebug") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".discord"
+            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "true")
+            matchingFallbacks += "debug"
         }
     }
     compileOptions {
@@ -111,13 +121,32 @@ dependencies {
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
+
+    // Firebase (for co-existing system and FCM)
     implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
     implementation(libs.firebase.database)
     implementation(libs.firebase.auth)
     implementation(libs.play.services.auth)
 
     // Lifecycle and ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Networking (for Discord System)
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+    implementation(libs.logging.interceptor)
+
+    // Image Loading (for Discord System)
+    implementation(libs.coil.compose)
+
+    // Auth (for Discord System)
+    implementation(libs.androidx.browser)
+
+    // Navigation
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
