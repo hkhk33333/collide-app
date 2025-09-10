@@ -518,20 +518,6 @@ fun MyAccountButton(
     }
 }
 
-@Composable
-fun MapScreenPreview() {
-    TestingTheme {
-        MapScreen(
-            currentLocation = null,
-            allLocations = emptyMap(),
-            onMyLocationClick = {},
-            onSignOut = {},
-            onNavigateToFriends = {},
-            friendToFocus = null,
-        )
-    }
-}
-
 enum class Screen {
     MAP,
     FRIENDS,
