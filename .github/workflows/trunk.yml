@@ -29,4 +29,5 @@ jobs:
       - name: Run Trunk Check
         uses: trunk-io/trunk-action@v1
         with:
-          check-all: ${{ github.ref == 'refs/heads/main' }}
+          check-mode: ${{ github.event_name == 'push' && 'all' || null }}
+          arguments: --github-annotate-new-only=false
