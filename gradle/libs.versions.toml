@@ -1,7 +1,6 @@
 [versions]
 agp = "8.13.0"
 constraintlayout = "2.2.1"
-converterGson = "3.0.0"
 firebaseBom = "34.2.0"
 googleServices = "4.4.3"
 kotlin = "2.2.20"
@@ -18,14 +17,12 @@ mapsCompose = "6.10.0"
 playServicesAuth = "21.4.0"
 playServicesLocation = "21.3.0"
 playServicesMaps = "19.2.0"
-retrofit = "3.0.0"
 detekt = "1.23.8"
 
 [libraries]
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
-converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 firebase-auth = { module = "com.google.firebase:firebase-auth" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-database = { module = "com.google.firebase:firebase-database" }
@@ -47,7 +44,6 @@ maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = 
 play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "playServicesMaps" }
-retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
 
 [plugins]
