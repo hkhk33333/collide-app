@@ -266,11 +266,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startBackgroundLocationService() {
         val serviceIntent = Intent(this, LocationService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
-        }
+        startForegroundService(serviceIntent)
     }
 
     private fun startLocationUpdates() {

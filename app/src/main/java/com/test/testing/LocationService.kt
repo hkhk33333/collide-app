@@ -48,20 +48,18 @@ class LocationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Location Service",
-                    NotificationManager.IMPORTANCE_LOW,
-                ).apply {
-                    description = "Keeps location sharing active in background"
-                    setShowBadge(false)
-                }
+        val channel =
+            NotificationChannel(
+                CHANNEL_ID,
+                "Location Service",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = "Keeps location sharing active in background"
+                setShowBadge(false)
+            }
 
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-        }
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification =
