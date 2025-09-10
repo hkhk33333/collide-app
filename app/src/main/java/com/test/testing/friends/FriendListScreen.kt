@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -194,7 +194,7 @@ fun FriendListScreen(
                                     }
                                 },
                             )
-                            Divider()
+                            HorizontalDivider()
                         }
                     }
 
@@ -222,7 +222,7 @@ fun FriendListScreen(
                     ) {
                         items(outgoingRequests) { friend ->
                             OutgoingFriendRequestItem(friend = friend)
-                            Divider()
+                            HorizontalDivider()
                         }
                     }
 
@@ -260,7 +260,7 @@ fun FriendListScreen(
                     ) {
                         items(acceptedFriends) { friend ->
                             FriendItem(friend = friend, onViewLocation = onViewFriendLocation)
-                            Divider()
+                            HorizontalDivider()
                         }
                     }
                 }

@@ -7,8 +7,3 @@ data class LocationModel(
     val timestamp: Long = System.currentTimeMillis(),
     val displayName: String = "Unknown User",
 )
-
-data class LocationResponse(
-    val success: Boolean,
-    val message: String,
-)
