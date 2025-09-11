@@ -1,7 +1,9 @@
 package com.test.testing.discord.viewmodels
 
+import android.app.Application
+import android.location.Location
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
@@ -12,14 +14,18 @@ import com.test.testing.discord.domain.usecase.GetGuildsUseCase
 import com.test.testing.discord.domain.usecase.GetUsersUseCase
 import com.test.testing.discord.domain.usecase.UpdateCurrentUserUseCase
 import com.test.testing.discord.domain.usecase.UserUseCases
+import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.*
 import com.test.testing.discord.ui.map.MapScreenUiState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.test.testing.discord.models.Location as ApiLocation
 
-class ApiViewModel : ViewModel() {
+class ApiViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser = _currentUser.asStateFlow()
 
@@ -29,10 +35,11 @@ class ApiViewModel : ViewModel() {
     private val _guilds = MutableStateFlow<List<Guild>>(emptyList())
     val guilds = _guilds.asStateFlow()
 
-    private val _uiState = MutableStateFlow(MapScreenUiState())
+    private val _uiState = MutableStateFlow<MapScreenUiState>(MapScreenUiState.Loading)
     val uiState: StateFlow<MapScreenUiState> = _uiState.asStateFlow()
 
     private val userUseCases: UserUseCases
+    private val locationManager = LocationManager.getInstance(application)
 
     init {
         val userRepository = UserRepositoryImpl(ApiClient.apiService)
@@ -45,6 +52,32 @@ class ApiViewModel : ViewModel() {
                 deleteUserData = DeleteUserDataUseCase(userRepository),
             )
         loadInitialData()
+        observeLocationUpdates()
+    }
+
+    private fun observeLocationUpdates() {
+        viewModelScope.launch {
+            locationManager.locationUpdates.collect { location ->
+                location?.let { sendLocationUpdate(it) }
+            }
+        }
+    }
+
+    private fun sendLocationUpdate(location: Location) {
+        viewModelScope.launch {
+            currentUser.value?.let { user ->
+                val newLocation =
+                    ApiLocation(
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        accuracy = location.accuracy.toDouble(),
+                        desiredAccuracy = locationManager.desiredAccuracy.toDouble(),
+                        lastUpdated = System.currentTimeMillis().toDouble(),
+                    )
+                val updatedUser = user.copy(location = newLocation)
+                updateCurrentUser(updatedUser) {}
+            }
+        }
     }
 
     private var refreshJob: Job? = null
@@ -60,9 +93,7 @@ class ApiViewModel : ViewModel() {
         Log.d("ApiViewModel", "Starting periodic data refresh timer.")
         refreshJob =
             viewModelScope.launch {
-                // Perform an initial load immediately
-                loadInitialData()
-                // Then start the periodic refresh
+                // Start the periodic refresh loop (no initial load here)
                 while (true) {
                     delay(refreshInterval)
                     Log.d("ApiViewModel", "Timer triggered. Refreshing user data.")
@@ -81,7 +112,7 @@ class ApiViewModel : ViewModel() {
         if (token == null) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.value = MapScreenUiState.Loading
 
             // Fetch current user and guilds once
             userUseCases.getCurrentUser(token!!).collect { user ->
@@ -91,15 +122,25 @@ class ApiViewModel : ViewModel() {
                 _guilds.value = guildList
             }
 
+            // Fetch initial users data
+            userUseCases.getUsers(token!!).collect { userList ->
+                _users.value = userList
+            }
+
             // Start periodic user refresh
             startDataRefresh()
-            _uiState.update { it.copy(isLoading = false) }
+            _uiState.value = MapScreenUiState.Success(_users.value, isRefreshing = false)
         }
     }
 
     // New public function for manual refresh from the UI
     fun manualRefresh() {
-        if (_uiState.value.isLoading) return // Prevent multiple concurrent refreshes
+        val currentState = _uiState.value
+        if (currentState is MapScreenUiState.Loading ||
+            (currentState is MapScreenUiState.Success && currentState.isRefreshing)
+        ) {
+            return // Prevent multiple concurrent refreshes
+        }
         viewModelScope.launch {
             Log.d("ApiViewModel", "Manual refresh triggered.")
             refreshUsers()
@@ -109,17 +150,29 @@ class ApiViewModel : ViewModel() {
     // A specific function for refreshing just the users list, which is what the timer does.
     suspend fun refreshUsers() {
         token?.let {
-            _uiState.update { it.copy(isLoading = true) }
+            val currentState = _uiState.value
+            if (currentState is MapScreenUiState.Success) {
+                // If we're already showing success, just set refreshing flag
+                _uiState.value = currentState.copy(isRefreshing = true)
+            } else {
+                // If we're in a different state, set to loading
+                _uiState.value = MapScreenUiState.Loading
+            }
+
             userUseCases
                 .getUsers(it)
                 .catch { e ->
-                    _uiState.update { state ->
-                        state.copy(error = "Failed to refresh users: ${e.message}")
+                    if (currentState is MapScreenUiState.Success) {
+                        // If we were in success state, go back to success without refreshing flag
+                        _uiState.value = currentState.copy(isRefreshing = false)
+                    } else {
+                        // Otherwise, set error state
+                        _uiState.value = MapScreenUiState.Error("Failed to refresh users: ${e.message}")
                     }
                     Log.e("ApiViewModel", "Error refreshing users", e)
                 }.collect { userList ->
                     _users.value = userList
-                    _uiState.update { state -> state.copy(users = userList, isLoading = false) }
+                    _uiState.value = MapScreenUiState.Success(userList, isRefreshing = false)
                 }
         }
     }
@@ -130,15 +183,14 @@ class ApiViewModel : ViewModel() {
     ) {
         token?.let {
             viewModelScope.launch {
-                _uiState.update { it.copy(isLoading = true) }
+                _uiState.value = MapScreenUiState.Loading
                 try {
                     userUseCases.updateCurrentUser(it, user)
                     _currentUser.value = user
                     refreshUsers()
                 } catch (e: Exception) {
-                    _uiState.update { state -> state.copy(error = "Failed to update user: ${e.message}") }
+                    _uiState.value = MapScreenUiState.Error("Failed to update user: ${e.message}")
                 } finally {
-                    _uiState.update { it.copy(isLoading = false) }
                     onComplete()
                 }
             }
@@ -158,9 +210,7 @@ class ApiViewModel : ViewModel() {
         _currentUser.value = null
         _users.value = emptyList()
         _guilds.value = emptyList()
-        _uiState.update {
-            it.copy(isLoading = false, users = emptyList(), error = null)
-        }
+        _uiState.value = MapScreenUiState.Success(emptyList(), isRefreshing = false)
         stopDataRefresh()
     }
 }

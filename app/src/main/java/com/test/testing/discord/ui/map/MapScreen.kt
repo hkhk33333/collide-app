@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,67 +66,68 @@ fun MapScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            properties = MapProperties(isMyLocationEnabled = locationManager.locationPermissionGranted),
-            // THE FIX: Use the onMapLoaded callback to update our state.
-            onMapLoaded = {
-                isMapLoaded = true
-            },
-        ) {
-            uiState.users.forEach { user ->
-                user.location?.let { location ->
-                    val position = LatLng(location.latitude, location.longitude)
-                    UserMarker(
-                        user = user,
-                        position = position,
-                    )
-                }
+        // Use a when expression to handle the state
+        when (val state = uiState) {
+            is MapScreenUiState.Loading -> {
+                // Show a full-screen loading indicator
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
-        }
-
-        // Combined UI for both manual and automatic refresh indicators
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (uiState.isLoading) {
-                // Show spinner if loading
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else {
-                // Show refresh button if not loading
-                IconButton(onClick = { apiViewModel.manualRefresh() }) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh Users",
-                    )
-                }
-            }
-        }
-
-        // Error message display
-        uiState.error?.let { errorMessage ->
-            Box(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 16.dp)
-                        .background(
-                            MaterialTheme.colorScheme.errorContainer,
-                            RoundedCornerShape(8.dp),
-                        ).padding(horizontal = 16.dp, vertical = 8.dp),
-            ) {
+            is MapScreenUiState.Error -> {
+                // Show an error message
                 Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = state.message,
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.error,
                 )
+            }
+            is MapScreenUiState.Success -> {
+                // On success, display the map and markers
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(isMyLocationEnabled = locationManager.locationPermissionGranted),
+                    // THE FIX: Use the onMapLoaded callback to update our state.
+                    onMapLoaded = {
+                        isMapLoaded = true
+                    },
+                ) {
+                    state.users.forEach { user ->
+                        user.location?.let { location ->
+                            val position = LatLng(location.latitude, location.longitude)
+                            UserMarker(
+                                user = user,
+                                position = position,
+                            )
+                        }
+                    }
+                }
+
+                // The refresh button and other UI can be layered on top
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp)
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.isRefreshing) {
+                        // Show loading indicator on the refresh button when refreshing
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    } else {
+                        // Show refresh button when not refreshing
+                        IconButton(onClick = { apiViewModel.manualRefresh() }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh Users",
+                            )
+                        }
+                    }
+                }
             }
         }
     }

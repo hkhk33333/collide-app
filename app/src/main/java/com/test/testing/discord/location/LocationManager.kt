@@ -16,17 +16,12 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import com.google.android.gms.location.*
-import com.test.testing.discord.viewmodels.ApiViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import com.test.testing.discord.models.Location as ApiLocation
+import java.lang.ref.WeakReference
 
 class LocationManager private constructor(
     private val context: Context,
-    private val apiViewModel: ApiViewModel,
 ) {
     private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
     private val prefs: SharedPreferences = context.getSharedPreferences("location_settings", Context.MODE_PRIVATE)
@@ -67,8 +62,6 @@ class LocationManager private constructor(
         desiredAccuracy = accuracy
         prefs.edit { putFloat("desiredAccuracy", accuracy) }
         // No need to restart location updates for this, it's used when sending data
-        // Trigger a single refresh to reflect privacy change
-        triggerUserRefresh()
     }
     // --- End Persisted Settings ---
 
@@ -89,7 +82,6 @@ class LocationManager private constructor(
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     _locationUpdates.value = location
-                    sendLocationUpdate(location)
                 }
             }
         }
@@ -135,47 +127,16 @@ class LocationManager private constructor(
         context.stopService(serviceIntent)
     }
 
-    private fun sendLocationUpdate(location: android.location.Location) {
-        // This function now runs on a background thread
-        CoroutineScope(Dispatchers.IO).launch {
-            apiViewModel.currentUser.value?.let { currentUser ->
-                val newLocation =
-                    ApiLocation(
-                        latitude = location.latitude,
-                        longitude = location.longitude,
-                        accuracy = location.accuracy.toDouble(),
-                        desiredAccuracy = desiredAccuracy.toDouble(),
-                        lastUpdated = System.currentTimeMillis().toDouble(),
-                    )
-
-                val updatedUser = currentUser.copy(location = newLocation)
-                // We don't need the onComplete lambda here for a background task
-                apiViewModel.updateCurrentUser(updatedUser) {}
-            }
-        }
-    }
-
-    // New function to trigger a one-off user list refresh
-    fun triggerUserRefresh() {
-        CoroutineScope(Dispatchers.IO).launch {
-            Log.d("LocationManager", "Triggering manual user refresh.")
-            apiViewModel.refreshUsers()
-        }
-    }
-
     companion object {
         @Volatile
         private var INSTANCE: LocationManager? = null
 
-        fun getInstance(
-            context: Context,
-            apiViewModel: ApiViewModel,
-        ): LocationManager =
+        fun getInstance(context: Context): LocationManager =
             INSTANCE ?: synchronized(this) {
-                INSTANCE ?: LocationManager(context.applicationContext, apiViewModel).also { INSTANCE = it }
+                INSTANCE ?: LocationManager(context.applicationContext).also { INSTANCE = it }
             }
 
         val instance: LocationManager
-            get() = INSTANCE ?: throw IllegalStateException("LocationManager not initialized")
+            get() = INSTANCE ?: error("LocationManager not initialized")
     }
 }

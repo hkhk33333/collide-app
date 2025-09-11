@@ -37,7 +37,7 @@ sealed class Screen(
 fun MainScreen(apiViewModel: ApiViewModel) {
     val navController = rememberNavController()
     val context = LocalContext.current
-    val locationManager = remember { LocationManager.getInstance(context, apiViewModel) }
+    val locationManager = remember { LocationManager.getInstance(context) }
 
     // Use a lifecycle effect to start/stop the timer when the MainScreen is shown/hidden
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
