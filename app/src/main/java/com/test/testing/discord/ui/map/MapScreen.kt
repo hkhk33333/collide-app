@@ -1,9 +1,5 @@
 package com.test.testing.discord.ui.map
 
-import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,7 +30,6 @@ import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
 import com.test.testing.discord.ui.CoilImageLoader
 import com.test.testing.discord.viewmodels.ApiViewModel
-import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -42,9 +37,8 @@ fun MapScreen(
     apiViewModel: ApiViewModel,
     locationManager: LocationManager,
 ) {
-    val users by apiViewModel.users.collectAsState()
+    val uiState by apiViewModel.uiState.collectAsState()
     val currentUserLocation by locationManager.locationUpdates.collectAsState()
-    val isLoading by apiViewModel.isLoading.collectAsState()
     var hasInitiallyCentered by remember { mutableStateOf(false) }
 
     // THE FIX: Add a state to track if the map has finished loading.
@@ -80,7 +74,7 @@ fun MapScreen(
                 isMapLoaded = true
             },
         ) {
-            users.forEach { user ->
+            uiState.users.forEach { user ->
                 user.location?.let { location ->
                     val position = LatLng(location.latitude, location.longitude)
                     UserMarker(
@@ -101,7 +95,7 @@ fun MapScreen(
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (isLoading) {
+            if (uiState.isLoading) {
                 // Show spinner if loading
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             } else {
