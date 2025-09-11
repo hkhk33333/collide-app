@@ -1,4 +1,4 @@
-package com.test.testing.discord.domain.use_cases
+package com.test.testing.discord.domain.usecase
 
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.User

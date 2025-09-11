@@ -1,4 +1,4 @@
-package com.test.testing.discord.domain.use_case
+package com.test.testing.discord.domain.usecase
 
 data class UserUseCases(
     val getUsers: GetUsersUseCase,
