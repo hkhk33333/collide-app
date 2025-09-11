@@ -10,7 +10,6 @@ import com.google.firebase.messaging.RemoteMessage
 import com.test.testing.R
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
-import com.test.testing.discord.models.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

@@ -89,7 +89,9 @@ object Validation {
     /**
      * Validates privacy settings
      */
-    fun validatePrivacySettings(privacy: PrivacySettings): ValidationResult {
+    fun validatePrivacySettings(
+        @Suppress("UNUSED_PARAMETER") privacy: PrivacySettings,
+    ): ValidationResult {
         // Privacy settings are mostly just lists, so basic validation
         val errors = mutableListOf<String>()
 

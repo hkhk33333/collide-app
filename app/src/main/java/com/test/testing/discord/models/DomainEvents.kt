@@ -1,7 +1,5 @@
 package com.test.testing.discord.models
 
-import com.test.testing.discord.models.User
-
 // Domain events for decoupling layers
 sealed class DomainEvent {
     data class UserDataUpdated(

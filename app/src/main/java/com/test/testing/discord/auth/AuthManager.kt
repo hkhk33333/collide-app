@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
-import com.test.testing.discord.Constants
+import androidx.core.net.toUri
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.models.DiscordTokenResponse
 import com.test.testing.discord.models.TokenRequest
@@ -60,8 +60,8 @@ class AuthManager private constructor(
             Uri
                 .parse("https://discord.com/api/oauth2/authorize")
                 .buildUpon()
-                .appendQueryParameter("client_id", Constants.DISCORD_CLIENT_ID)
-                .appendQueryParameter("redirect_uri", Constants.CALLBACK_URL)
+                .appendQueryParameter("client_id", com.test.testing.discord.config.AppConfig.discordClientId)
+                .appendQueryParameter("redirect_uri", com.test.testing.discord.config.AppConfig.CALLBACK_URL)
                 .appendQueryParameter("response_type", "code")
                 .appendQueryParameter("scope", "identify guilds")
                 .appendQueryParameter("code_challenge", codeChallenge)
@@ -84,7 +84,7 @@ class AuthManager private constructor(
                     TokenRequest(
                         code = code,
                         codeVerifier = codeVerifier!!,
-                        redirectUri = Constants.CALLBACK_URL,
+                        redirectUri = com.test.testing.discord.config.AppConfig.CALLBACK_URL,
                     )
                 val response = ApiClient.apiService.exchangeCodeForToken(request)
                 if (response.isSuccessful && response.body() != null) {

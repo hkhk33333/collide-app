@@ -62,6 +62,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Default build config for production/standard builds
         buildConfigField("boolean", "USE_DISCORD_SYSTEM", "false")
+        buildConfigField("String", "DISCORD_BACKEND_URL", "\"https://miniworld-new-staging.up.railway.app\"")
+        buildConfigField("String", "DISCORD_CLIENT_ID", "\"1232840493696680038\"")
     }
 
     buildTypes {
@@ -76,13 +78,6 @@ android {
         debug {
             // Firebase system for standard debug builds
             buildConfigField("boolean", "USE_DISCORD_SYSTEM", "true") // Enable for debug
-        }
-        // New build type specifically for debugging the Discord system
-        create("discordDebug") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".discord"
-            buildConfigField("boolean", "USE_DISCORD_SYSTEM", "true")
-            matchingFallbacks += "debug"
         }
     }
     compileOptions {

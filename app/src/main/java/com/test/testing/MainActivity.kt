@@ -62,7 +62,6 @@ import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
 import com.test.testing.auth.AuthNavigation
 import com.test.testing.auth.AuthViewModel
-import com.test.testing.discord.Constants
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.ui.DiscordApp
 import com.test.testing.friends.AddFriendScreen
@@ -152,7 +151,7 @@ class MainActivity : ComponentActivity() {
     // ADDED: A helper function to process the redirect intent
     private fun handleAuthRedirect(intent: Intent?) {
         val uri = intent?.data
-        if (uri != null && uri.toString().startsWith(Constants.CALLBACK_URL)) {
+        if (uri != null && uri.toString().startsWith(com.test.testing.discord.config.AppConfig.CALLBACK_URL)) {
             val code = uri.getQueryParameter("code")
             if (code != null) {
                 Log.d("MainActivity", "Received auth code from redirect: $code")

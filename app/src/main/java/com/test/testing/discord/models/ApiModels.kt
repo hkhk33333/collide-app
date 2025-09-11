@@ -2,14 +2,19 @@ package com.test.testing.discord.models
 
 import com.google.gson.annotations.SerializedName
 
-// Result wrapper for better error handling
+// Enhanced Result wrapper for better error handling and recovery
 sealed class Result<out T> {
     data class Success<out T>(
         val data: T,
+        val metadata: ResultMetadata = ResultMetadata(),
     ) : Result<T>()
 
     data class Error(
         val exception: Exception,
+        val errorType: ErrorType = ErrorType.UNKNOWN,
+        val canRetry: Boolean = false,
+        val retryAfter: Long? = null,
+        val metadata: ResultMetadata = ResultMetadata(),
     ) : Result<Nothing>()
 
     val isSuccess: Boolean get() = this is Success
@@ -27,9 +32,15 @@ sealed class Result<out T> {
             is Error -> throw exception
         }
 
+    fun getOrDefault(defaultValue: @UnsafeVariance T): T =
+        when (this) {
+            is Success -> data
+            is Error -> defaultValue
+        }
+
     fun <R> map(transform: (T) -> R): Result<R> =
         when (this) {
-            is Success -> Success(transform(data))
+            is Success -> Success(transform(data), metadata)
             is Error -> this
         }
 
@@ -39,14 +50,80 @@ sealed class Result<out T> {
             is Error -> this
         }
 
+    fun onSuccess(action: (T) -> Unit): Result<T> {
+        if (this is Success) {
+            action(data)
+        }
+        return this
+    }
+
+    fun onError(action: (Exception) -> Unit): Result<T> {
+        if (this is Error) {
+            action(exception)
+        }
+        return this
+    }
+
+    fun recover(transform: (Exception) -> @UnsafeVariance T): Result<T> =
+        when (this) {
+            is Success -> this
+            is Error -> Success(transform(exception), metadata)
+        }
+
+    fun recoverCatching(transform: (Exception) -> @UnsafeVariance T): Result<T> =
+        when (this) {
+            is Success -> this
+            is Error ->
+                try {
+                    Success(transform(exception), metadata)
+                } catch (e: Exception) {
+                    Error(e, errorType, canRetry, retryAfter, metadata)
+                }
+        }
+
     companion object {
-        fun <T> success(data: T): Result<T> = Success(data)
+        fun <T> success(
+            data: T,
+            metadata: ResultMetadata = ResultMetadata(),
+        ): Result<T> = Success(data, metadata)
 
-        fun error(exception: Exception): Result<Nothing> = Error(exception)
+        fun error(
+            exception: Exception,
+            errorType: ErrorType = ErrorType.UNKNOWN,
+            canRetry: Boolean = false,
+            retryAfter: Long? = null,
+            metadata: ResultMetadata = ResultMetadata(),
+        ): Result<Nothing> = Error(exception, errorType, canRetry, retryAfter, metadata)
 
-        fun <T> error(message: String): Result<T> = Error(Exception(message))
+        fun <T> error(
+            message: String,
+            errorType: ErrorType = ErrorType.UNKNOWN,
+            canRetry: Boolean = false,
+            retryAfter: Long? = null,
+        ): Result<T> = Error(Exception(message), errorType, canRetry, retryAfter)
     }
 }
+
+// Error types for better error categorization
+enum class ErrorType {
+    NETWORK,
+    AUTHENTICATION,
+    AUTHORIZATION,
+    SERVER,
+    CLIENT,
+    VALIDATION,
+    TIMEOUT,
+    RATE_LIMITED,
+    UNKNOWN,
+}
+
+// Metadata for tracking operation details
+data class ResultMetadata(
+    val timestamp: Long = System.currentTimeMillis(),
+    val operation: String? = null,
+    val duration: Long? = null,
+    val cacheHit: Boolean = false,
+)
 
 // Corresponds to LocationSchema
 data class Location(

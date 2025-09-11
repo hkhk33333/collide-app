@@ -4,7 +4,6 @@ import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.Result
 import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 
 class GetCurrentUserUseCase(
     private val repository: UserRepository,

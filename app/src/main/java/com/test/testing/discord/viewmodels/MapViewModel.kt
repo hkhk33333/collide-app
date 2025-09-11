@@ -3,7 +3,6 @@ package com.test.testing.discord.viewmodels
 import android.app.Application
 import android.location.Location
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
@@ -19,6 +18,7 @@ import kotlinx.coroutines.launch
 
 class MapViewModel(
     application: Application,
+    private val coroutineManager: CoroutineManager = CoroutineManager(),
     private val userRepositoryImpl: UserRepositoryImpl = UserRepositoryImpl(ApiClient.apiService),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
@@ -45,7 +45,7 @@ class MapViewModel(
     }
 
     private fun observeLocationUpdates() {
-        viewModelScope.launch {
+        coroutineManager.launch {
             locationManager.locationUpdates.collect { location ->
                 location?.let { sendLocationUpdate(it) }
             }
@@ -53,7 +53,7 @@ class MapViewModel(
     }
 
     private fun sendLocationUpdate(location: Location) {
-        viewModelScope.launch {
+        coroutineManager.launch {
             val currentUser = getCurrentUser()
             currentUser?.let { user ->
                 val newLocation =
@@ -73,7 +73,7 @@ class MapViewModel(
     private suspend fun getCurrentUser(): User? {
         // This would need to be implemented - for now return null
         // In a real implementation, you'd have a separate UserViewModel
-        return null
+        return null // TODO: Implement proper current user retrieval
     }
 
     fun loadUsers() {
@@ -84,7 +84,7 @@ class MapViewModel(
 
         _uiState.value = MapScreenUiState.Loading
 
-        viewModelScope.launch {
+        coroutineManager.launch {
             getUsersUseCase(token!!).collect { result ->
                 when (result) {
                     is Result.Success -> {
@@ -113,7 +113,7 @@ class MapViewModel(
             return // Prevent multiple concurrent refreshes
         }
 
-        viewModelScope.launch {
+        coroutineManager.launch {
             if (currentState is MapScreenUiState.Success) {
                 _uiState.value = currentState.copy(isRefreshing = true)
             }
@@ -176,7 +176,7 @@ class MapViewModel(
         if (refreshJob?.isActive == true) return
 
         refreshJob =
-            viewModelScope.launch {
+            coroutineManager.launch {
                 while (true) {
                     delay(refreshInterval)
                     refreshUsers()

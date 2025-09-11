@@ -2,7 +2,6 @@ package com.test.testing.discord.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
@@ -13,6 +12,7 @@ import kotlinx.coroutines.launch
 
 class UserViewModel(
     application: Application,
+    private val coroutineManager: CoroutineManager = CoroutineManager(),
     private val userRepositoryImpl: UserRepositoryImpl = UserRepositoryImpl(ApiClient.apiService),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
@@ -46,7 +46,7 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        viewModelScope.launch {
+        coroutineManager.launch {
             try {
                 // Load current user
                 getCurrentUserUseCase(token!!).collect { result ->
@@ -88,7 +88,7 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        viewModelScope.launch {
+        coroutineManager.launch {
             try {
                 val result = updateUserUseCase(token!!, user)
                 when (result) {
@@ -116,7 +116,7 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        viewModelScope.launch {
+        coroutineManager.launch {
             try {
                 val result = deleteUserDataUseCase(token!!)
                 when (result) {
@@ -136,7 +136,7 @@ class UserViewModel(
     }
 
     fun logout(onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
+        coroutineManager.launch {
             AuthManager.instance.logout {
                 clearData()
                 eventBus.publish(DomainEvent.UserLoggedOut)

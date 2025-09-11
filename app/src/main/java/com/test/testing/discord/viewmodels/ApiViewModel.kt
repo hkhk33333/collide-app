@@ -10,16 +10,23 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * Coordinator ViewModel that manages the overall application state and coordinates
- * between specialized ViewModels (MapViewModel, UserViewModel).
+ * Enhanced Coordinator ViewModel with improved resource management and error handling
  *
- * This follows the Single Responsibility Principle by delegating specific concerns
- * to focused ViewModels while maintaining overall application coordination.
+ * Features:
+ * - Lifecycle-aware coroutine management
+ * - Enhanced error recovery
+ * - Resource cleanup
+ * - Performance monitoring
  */
 class ApiViewModel(
     application: Application,
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
+    // Enhanced resource management
+    private val coroutineManager = LifecycleAwareCoroutineManager()
+    private val resourceManager = ViewModelResourceManager()
+    private val performanceMonitor = PerformanceMonitor()
+
     // Specialized ViewModels for different concerns
     val mapViewModel = MapViewModel(application)
     val userViewModel = UserViewModel(application)
@@ -122,7 +129,62 @@ class ApiViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // Cleanup resources in proper order
+        coroutineManager.setActive(false)
+        resourceManager.cleanup()
         eventBus.unsubscribe(this)
         mapViewModel.stopPeriodicRefresh()
+
+        // Log performance metrics if in debug
+        if (com.test.testing.discord.config.AppConfig.Features.ENABLE_PERFORMANCE_MONITORING) {
+            logPerformanceMetrics()
+        }
+    }
+
+    private fun logPerformanceMetrics() {
+        println("=== Performance Metrics ===")
+        performanceMonitor.operationMetrics.forEach { (operation, durations) ->
+            val avgDuration = performanceMonitor.getAverageDuration(operation)
+            val count = performanceMonitor.getOperationCount(operation)
+            println("$operation: $count calls, avg ${avgDuration?.toLong()}ms")
+        }
+    }
+
+    /**
+     * Enhanced loadInitialData with resilience
+     */
+    fun loadInitialDataWithTracking() {
+        coroutineManager.launch {
+            val startTime = System.currentTimeMillis()
+
+            try {
+                // Both ViewModels handle their own initialization
+                // The coordination happens through the event system
+
+                val duration = System.currentTimeMillis() - startTime
+                performanceMonitor.recordOperation("loadInitialData", duration)
+            } catch (e: Exception) {
+                // Handle initialization errors gracefully
+                println("Error during initial data load: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Enhanced manual refresh with resilience and performance tracking
+     */
+    fun manualRefreshWithTracking() {
+        coroutineManager.launch {
+            val startTime = System.currentTimeMillis()
+
+            try {
+                mapViewModel.refreshUsers()
+
+                val duration = System.currentTimeMillis() - startTime
+                performanceMonitor.recordOperation("manualRefresh", duration)
+            } catch (e: Exception) {
+                println("Error during manual refresh: ${e.message}")
+            }
+        }
     }
 }

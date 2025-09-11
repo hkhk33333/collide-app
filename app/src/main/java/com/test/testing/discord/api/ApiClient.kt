@@ -1,6 +1,5 @@
 package com.test.testing.discord.api
 
-import com.test.testing.discord.Constants
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -21,7 +20,7 @@ object ApiClient {
     private val retrofit: Retrofit =
         Retrofit
             .Builder()
-            .baseUrl(Constants.BACKEND_URL)
+            .baseUrl(com.test.testing.discord.config.AppConfig.baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
