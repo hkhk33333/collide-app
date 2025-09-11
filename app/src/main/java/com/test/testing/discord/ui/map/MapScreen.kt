@@ -30,15 +30,15 @@ import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
 import com.test.testing.discord.ui.CoilImageLoader
-import com.test.testing.discord.viewmodels.ApiViewModel
+import com.test.testing.discord.viewmodels.MapViewModel
 import kotlin.math.roundToInt
 
 @Composable
 fun MapScreen(
-    apiViewModel: ApiViewModel,
+    mapViewModel: MapViewModel,
     locationManager: LocationManager,
 ) {
-    val uiState by apiViewModel.uiState.collectAsState()
+    val uiState by mapViewModel.uiState.collectAsState()
     val currentUserLocation by locationManager.locationUpdates.collectAsState()
     var hasInitiallyCentered by remember { mutableStateOf(false) }
 
@@ -73,16 +73,9 @@ fun MapScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
             is MapScreenUiState.Error -> {
-                // Show an error message based on error type
-                val errorMessage =
-                    when (state) {
-                        is MapScreenUiState.Error.NetworkError -> state.message
-                        is MapScreenUiState.Error.AuthenticationError -> state.message
-                        is MapScreenUiState.Error.ServerError -> state.message ?: "Server error occurred"
-                        is MapScreenUiState.Error.UnknownError -> state.message ?: "An unknown error occurred"
-                    }
+                // Show an error message
                 Text(
-                    text = errorMessage,
+                    text = state.message,
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -127,7 +120,7 @@ fun MapScreen(
                         )
                     } else {
                         // Show refresh button when not refreshing
-                        IconButton(onClick = { apiViewModel.manualRefresh() }) {
+                        IconButton(onClick = { mapViewModel.refreshUsers() }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Refresh Users",
@@ -148,29 +141,38 @@ fun UserMarker(
     val context = LocalContext.current
     var bitmapDescriptor by remember { mutableStateOf<BitmapDescriptor?>(null) }
 
+    // Load and process user avatar
     LaunchedEffect(user.duser.avatarUrl) {
-        val imageLoader = CoilImageLoader.getInstance(context)
-        val request =
-            ImageRequest
-                .Builder(context)
-                .data(user.duser.avatarUrl)
-                .transformations(BorderedCircleCropTransformation())
-                .size(128, 128)
-                .allowHardware(false)
-                .target { drawable ->
-                    val bitmap = drawable.toBitmap()
-                    bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
-                }.build()
-        imageLoader.enqueue(request)
+        try {
+            val imageLoader = CoilImageLoader.getInstance(context)
+            val request =
+                ImageRequest
+                    .Builder(context)
+                    .data(user.duser.avatarUrl)
+                    .transformations(BorderedCircleCropTransformation())
+                    .size(96, 96) // Smaller size for map markers
+                    .allowHardware(false)
+                    .target { drawable ->
+                        try {
+                            val bitmap = drawable.toBitmap()
+                            bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
+                        } catch (e: Exception) {
+                            // Fallback to default marker if image processing fails
+                            bitmapDescriptor = null
+                        }
+                    }.build()
+            imageLoader.enqueue(request)
+        } catch (e: Exception) {
+            // If image loading fails, use default marker
+            bitmapDescriptor = null
+        }
     }
 
-    bitmapDescriptor?.let {
-        Marker(
-            state = MarkerState(position = position),
-            title = user.duser.username,
-            snippet = "Accuracy: ${user.location?.accuracy?.roundToInt()}m",
-            icon = it,
-            anchor = Offset(0.5f, 0.5f),
-        )
-    }
+    Marker(
+        state = MarkerState(position = position),
+        title = user.duser.username,
+        snippet = "Accuracy: ${user.location?.accuracy?.roundToInt()}m",
+        icon = bitmapDescriptor, // Use custom avatar or default marker
+        anchor = Offset(0.5f, 0.45f), // Slightly above center to account for shadow
+    )
 }

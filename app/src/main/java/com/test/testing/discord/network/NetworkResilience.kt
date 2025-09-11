@@ -1,118 +1,235 @@
 package com.test.testing.discord.network
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
+import android.util.Log
 import com.test.testing.discord.config.AppConfig
 import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.Result
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.retryWhen
-import kotlin.math.min
-import kotlin.math.pow
+import okhttp3.Interceptor
+import okhttp3.Response
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 /**
- * Network resilience utilities with retry policies and circuit breaker
+ * Professional network resilience layer for handling network issues gracefully
  */
-class NetworkResilience {
+class NetworkResilience private constructor(
+    private val context: Context,
+) {
+    companion object {
+        @Volatile
+        private var INSTANCE: NetworkResilience? = null
+
+        fun getInstance(context: Context): NetworkResilience =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: NetworkResilience(context.applicationContext).also { INSTANCE = it }
+            }
+    }
+
     /**
-     * Executes an operation with exponential backoff retry policy
+     * Check if device has internet connectivity
      */
-    suspend fun <T> executeWithRetry(
+    fun isNetworkAvailable(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+
+            return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        } else {
+            @Suppress("DEPRECATION")
+            val networkInfo = connectivityManager.activeNetworkInfo ?: return false
+            @Suppress("DEPRECATION")
+            return networkInfo.isConnected
+        }
+    }
+
+    /**
+     * Execute network operation with retry logic and resilience
+     */
+    suspend fun <T> executeWithResilience(
         operation: suspend () -> Result<T>,
         maxRetries: Int = AppConfig.MAX_RETRY_ATTEMPTS,
-        initialDelay: Long = AppConfig.INITIAL_RETRY_DELAY_MS,
-        maxDelay: Long = AppConfig.MAX_RETRY_DELAY_MS,
-        backoffMultiplier: Double = 2.0,
-        @Suppress("UNUSED_PARAMETER") operationName: String = "network_operation",
+        initialDelayMs: Long = AppConfig.INITIAL_RETRY_DELAY_MS,
+        maxDelayMs: Long = AppConfig.MAX_RETRY_DELAY_MS,
+        operationName: String = "network_operation",
     ): Result<T> {
-        var lastResult: Result<T>? = null
-        var currentDelay = initialDelay
-
-        for (attempt in 0..maxRetries) {
-            val result = operation()
-
-            // If successful or not retryable, return immediately
-            if (shouldReturnEarly(result)) {
-                return result
-            }
-
-            lastResult = result
-
-            // If this is the last attempt, break out to return final result
-            if (attempt == maxRetries) break
-
-            // Calculate delay with jitter to prevent thundering herd
-            val delayWithJitter = calculateDelayWithJitter(currentDelay, maxDelay)
-            delay(delayWithJitter)
-
-            // Exponential backoff
-            currentDelay = min((currentDelay * backoffMultiplier).toLong(), maxDelay)
+        if (!isNetworkAvailable()) {
+            return Result.error(
+                Exception("No internet connection available"),
+                errorType = ErrorType.NETWORK,
+                canRetry = true,
+            )
         }
 
-        return lastResult ?: Result.error(
-            message = "All retry attempts failed",
-            errorType = ErrorType.UNKNOWN,
+        var currentDelay = initialDelayMs
+        var lastException: Exception? = null
+
+        repeat(maxRetries) { attempt ->
+            try {
+                val result = operation()
+
+                // If operation succeeded, return the result
+                if (result.isSuccess) {
+                    return result
+                }
+
+                // If operation failed with a non-retryable error, return immediately
+                if (result is Result.Error && !result.canRetry) {
+                    return result
+                }
+
+                lastException = (result as? Result.Error)?.exception
+            } catch (e: Exception) {
+                lastException = e
+
+                // Don't retry certain types of errors
+                if (isNonRetryableError(e)) {
+                    return Result.error(e, errorType = getErrorType(e), canRetry = false)
+                }
+            }
+
+            // If this isn't the last attempt, wait before retrying
+            if (attempt < maxRetries - 1) {
+                Log.w("NetworkResilience", "Attempt ${attempt + 1} failed for $operationName, retrying in ${currentDelay}ms")
+                delay(currentDelay)
+                currentDelay = (currentDelay * 2).coerceAtMost(maxDelayMs)
+            }
+        }
+
+        // All retries exhausted
+        return Result.error(
+            lastException ?: Exception("Operation failed after $maxRetries attempts"),
+            errorType = ErrorType.NETWORK,
+            canRetry = true,
         )
     }
 
-    private fun <T> shouldReturnEarly(result: Result<T>): Boolean =
-        result.isSuccess ||
-            (result is Result.Error && !result.canRetry) ||
-            (result is Result.Error && result.errorType !in RETRYABLE_ERROR_TYPES)
+    /**
+     * Determine if an error is non-retryable
+     */
+    private fun isNonRetryableError(e: Exception): Boolean =
+        when (e) {
+            // Authentication errors
+            is retrofit2.HttpException -> {
+                val code = e.code()
+                code == 401 || code == 403 || code == 422
+            }
+
+            // Client errors that shouldn't be retried
+            is IllegalArgumentException -> {
+                true
+            }
+
+            // Other specific non-retryable errors
+            else -> {
+                false
+            }
+        }
 
     /**
-     * Creates a Flow that automatically retries failed operations
+     * Get error type from exception
      */
-    fun <T> Flow<Result<T>>.withResilientRetry(
-        maxRetries: Int = AppConfig.MAX_RETRY_ATTEMPTS,
-        @Suppress("UNUSED_PARAMETER") initialDelay: Long = AppConfig.INITIAL_RETRY_DELAY_MS,
-        @Suppress("UNUSED_PARAMETER") operationName: String = "flow_operation",
-    ): Flow<Result<T>> =
-        retryWhen { cause, attempt ->
-            val shouldRetry = attempt < maxRetries && cause is ResilientException
-            if (shouldRetry) {
-                val delay =
-                    calculateDelayWithJitter(
-                        AppConfig.INITIAL_RETRY_DELAY_MS * (2.0.pow(attempt.toDouble())).toLong(),
-                        AppConfig.MAX_RETRY_DELAY_MS,
-                    )
-                delay(delay)
+    private fun getErrorType(e: Exception): ErrorType =
+        when (e) {
+            is UnknownHostException -> {
+                ErrorType.NETWORK
             }
-            shouldRetry
+
+            is SocketTimeoutException -> {
+                ErrorType.TIMEOUT
+            }
+
+            is IOException -> {
+                ErrorType.NETWORK
+            }
+
+            is retrofit2.HttpException -> {
+                when (e.code()) {
+                    401, 403 -> ErrorType.AUTHENTICATION
+                    429 -> ErrorType.RATE_LIMITED
+                    in 400..499 -> ErrorType.CLIENT
+                    in 500..599 -> ErrorType.SERVER
+                    else -> ErrorType.UNKNOWN
+                }
+            }
+
+            else -> {
+                ErrorType.UNKNOWN
+            }
         }
+
+    /**
+     * OkHttp interceptor for adding resilience headers and logging
+     */
+    class ResilienceInterceptor : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
+
+            // Add resilience headers
+            val newRequest =
+                request
+                    .newBuilder()
+                    .addHeader("Connection", "keep-alive")
+                    .addHeader("Accept", "application/json")
+                    .build()
+
+            val startTime = System.currentTimeMillis()
+
+            return try {
+                val response = chain.proceed(newRequest)
+                val duration = System.currentTimeMillis() - startTime
+
+                // Log slow requests
+                if (duration > 5000) { // 5 seconds
+                    Log.w("NetworkResilience", "Slow request: ${request.url} took ${duration}ms")
+                }
+
+                response
+            } catch (e: Exception) {
+                val duration = System.currentTimeMillis() - startTime
+                Log.e("NetworkResilience", "Request failed: ${request.url} after ${duration}ms", e)
+                throw e
+            }
+        }
+    }
 
     /**
      * Circuit breaker for preventing cascade failures
      */
     class CircuitBreaker(
         private val failureThreshold: Int = 5,
-        private val recoveryTimeout: Long = 60000L, // 1 minute
-        private val expectedException: (Exception) -> Boolean = { true },
+        private val timeoutMs: Long = 60000, // 1 minute
     ) {
-        private var failures = 0
+        private var failureCount = 0
         private var lastFailureTime = 0L
         private var state = CircuitState.CLOSED
 
         enum class CircuitState {
             CLOSED, // Normal operation
-            OPEN, // Failing, requests rejected
+            OPEN, // Failing, reject requests
             HALF_OPEN, // Testing if service recovered
         }
 
-        fun <T> execute(operation: () -> Result<T>): Result<T> {
+        fun call(block: () -> Response): Response {
             when (state) {
                 CircuitState.OPEN -> {
-                    if (System.currentTimeMillis() - lastFailureTime > recoveryTimeout) {
+                    if (System.currentTimeMillis() - lastFailureTime > timeoutMs) {
                         state = CircuitState.HALF_OPEN
                     } else {
-                        return Result.error(
-                            message = "Circuit breaker is OPEN",
-                            errorType = ErrorType.SERVER,
-                            canRetry = true,
-                        )
+                        throw IOException("Circuit breaker is OPEN")
                     }
                 }
                 CircuitState.HALF_OPEN -> {
-                    // Allow one request through to test recovery
+                    // Allow one request through
                 }
                 CircuitState.CLOSED -> {
                     // Normal operation
@@ -120,145 +237,29 @@ class NetworkResilience {
             }
 
             return try {
-                val result = operation()
+                val response = block()
                 onSuccess()
-                result
+                response
             } catch (e: Exception) {
-                onFailure(e)
+                onFailure()
                 throw e
             }
         }
 
         private fun onSuccess() {
-            failures = 0
+            failureCount = 0
             state = CircuitState.CLOSED
         }
 
-        private fun onFailure(exception: Exception) {
-            if (expectedException(exception)) {
-                failures++
-                lastFailureTime = System.currentTimeMillis()
+        private fun onFailure() {
+            failureCount++
+            lastFailureTime = System.currentTimeMillis()
 
-                if (failures >= failureThreshold) {
-                    state = CircuitState.OPEN
-                }
-            }
-        }
-    }
-
-    /**
-     * Rate limiter to prevent API abuse
-     */
-    class RateLimiter(
-        private val maxRequests: Int = 100,
-        private val timeWindowMs: Long = 60000L, // 1 minute
-    ) {
-        private val requests = mutableListOf<Long>()
-
-        fun isAllowed(): Boolean {
-            val now = System.currentTimeMillis()
-            requests.removeIf { now - it > timeWindowMs }
-
-            return if (requests.size < maxRequests) {
-                requests.add(now)
-                true
-            } else {
-                false
+            if (failureCount >= failureThreshold) {
+                state = CircuitState.OPEN
             }
         }
 
-        fun getRemainingRequests(): Int = maxRequests - requests.size
-
-        fun getResetTime(): Long = requests.firstOrNull()?.plus(timeWindowMs) ?: 0L
-    }
-
-    companion object {
-        private val RETRYABLE_ERROR_TYPES =
-            setOf(
-                ErrorType.NETWORK,
-                ErrorType.TIMEOUT,
-                ErrorType.SERVER,
-                ErrorType.RATE_LIMITED,
-            )
-
-        private fun calculateDelayWithJitter(
-            baseDelay: Long,
-            maxDelay: Long,
-            jitterFactor: Double = 0.1,
-        ): Long {
-            val jitter = (baseDelay * jitterFactor * (Math.random() * 2 - 1)).toLong()
-            return min(baseDelay + jitter, maxDelay).coerceAtLeast(0)
-        }
-    }
-}
-
-/**
- * Exception wrapper for resilient operations
- */
-class ResilientException(
-    message: String,
-    cause: Throwable? = null,
-    val canRetry: Boolean = true,
-    val errorType: ErrorType = ErrorType.UNKNOWN,
-) : Exception(message, cause)
-
-/**
- * Extension functions for Result with resilience
- */
-suspend fun <T> Result<T>.retryOnFailure(
-    resilience: NetworkResilience,
-    operation: suspend () -> Result<T>,
-): Result<T> =
-    when (this) {
-        is Result.Error ->
-            if (canRetry) {
-                resilience.executeWithRetry(operation)
-            } else {
-                this
-            }
-        is Result.Success -> this
-    }
-
-/**
- * Factory for creating resilient network operations
- */
-object ResilienceFactory {
-    private val circuitBreaker = NetworkResilience.CircuitBreaker()
-    private val rateLimiter = NetworkResilience.RateLimiter()
-    private val resilience = NetworkResilience()
-
-    fun createResilientOperation() =
-        ResilientOperation(
-            circuitBreaker = circuitBreaker,
-            rateLimiter = rateLimiter,
-            resilience = resilience,
-        )
-}
-
-class ResilientOperation(
-    private val circuitBreaker: NetworkResilience.CircuitBreaker,
-    private val rateLimiter: NetworkResilience.RateLimiter,
-    private val resilience: NetworkResilience,
-) {
-    suspend fun <T> execute(
-        operation: suspend () -> Result<T>,
-        operationName: String = "resilient_operation",
-    ): Result<T> {
-        // Check rate limit first
-        if (!rateLimiter.isAllowed()) {
-            return Result.error(
-                message = "Rate limit exceeded",
-                errorType = ErrorType.RATE_LIMITED,
-                canRetry = true,
-                retryAfter = rateLimiter.getResetTime() - System.currentTimeMillis(),
-            )
-        }
-
-        // Execute through circuit breaker
-        return circuitBreaker.execute {
-            kotlinx.coroutines.runBlocking {
-                resilience.executeWithRetry(operation, operationName = operationName)
-            }
-        }
+        fun getState(): CircuitState = state
     }
 }

@@ -1,14 +1,12 @@
 package com.test.testing.discord.viewmodels
 
 import android.app.Application
-import android.location.Location
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
 import com.test.testing.discord.domain.usecase.GetUsersUseCase
-import com.test.testing.discord.domain.usecase.UpdateCurrentUserUseCase
-import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.*
 import com.test.testing.discord.ui.map.MapScreenUiState
 import kotlinx.coroutines.Job
@@ -19,16 +17,24 @@ import kotlinx.coroutines.launch
 class MapViewModel(
     application: Application,
     private val coroutineManager: CoroutineManager = CoroutineManager(),
-    private val userRepositoryImpl: UserRepositoryImpl = UserRepositoryImpl(ApiClient.apiService),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
+    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
     private val getUsersUseCase = GetUsersUseCase(userRepositoryImpl)
-    private val updateUserUseCase = UpdateCurrentUserUseCase(userRepositoryImpl)
-    private val locationManager = LocationManager.getInstance(application)
     private val eventBus = SimpleEventBus()
 
     private val _uiState = MutableStateFlow<MapScreenUiState>(MapScreenUiState.Loading)
     val uiState: StateFlow<MapScreenUiState> = _uiState.asStateFlow()
+
+    // Convenience flow for accessing users list
+    val users: StateFlow<List<User>> =
+        uiState
+            .map { state ->
+                when (state) {
+                    is MapScreenUiState.Success -> state.users
+                    else -> emptyList()
+                }
+            }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private var refreshJob: Job? = null
     private val refreshInterval = 30000L // 30 seconds
@@ -40,45 +46,16 @@ class MapViewModel(
 
     init {
         eventBus.subscribe(this)
-        observeLocationUpdates()
         loadUsers()
-    }
-
-    private fun observeLocationUpdates() {
-        coroutineManager.launch {
-            locationManager.locationUpdates.collect { location ->
-                location?.let { sendLocationUpdate(it) }
-            }
-        }
-    }
-
-    private fun sendLocationUpdate(location: Location) {
-        coroutineManager.launch {
-            val currentUser = getCurrentUser()
-            currentUser?.let { user ->
-                val newLocation =
-                    com.test.testing.discord.models.Location(
-                        latitude = location.latitude,
-                        longitude = location.longitude,
-                        accuracy = location.accuracy.toDouble(),
-                        desiredAccuracy = locationManager.desiredAccuracy.toDouble(),
-                        lastUpdated = System.currentTimeMillis().toDouble(),
-                    )
-                val updatedUser = user.copy(location = newLocation)
-                updateUser(updatedUser)
-            }
-        }
-    }
-
-    private suspend fun getCurrentUser(): User? {
-        // This would need to be implemented - for now return null
-        // In a real implementation, you'd have a separate UserViewModel
-        return null // TODO: Implement proper current user retrieval
     }
 
     fun loadUsers() {
         if (token == null) {
-            _uiState.value = MapScreenUiState.Error.AuthenticationError()
+            _uiState.value =
+                MapScreenUiState.Error(
+                    message = "Authentication required. Please log in again.",
+                    errorType = com.test.testing.discord.models.ErrorType.AUTHENTICATION,
+                )
             return
         }
 
@@ -139,35 +116,25 @@ class MapViewModel(
         }
     }
 
-    private suspend fun updateUser(user: User) {
-        token?.let {
-            val result = updateUserUseCase(it, user)
-            when (result) {
-                is Result.Success -> {
-                    eventBus.publish(DomainEvent.UserDataUpdated(user))
-                }
-                is Result.Error -> {
-                    eventBus.publish(DomainEvent.NetworkError("updateUser", result.exception))
-                }
-            }
-        }
-    }
-
     private fun mapExceptionToUiState(exception: Exception): MapScreenUiState.Error =
         when {
             exception.message?.contains("401") == true ||
                 exception.message?.contains("403") == true -> {
-                MapScreenUiState.Error.AuthenticationError()
+                MapScreenUiState.Error(
+                    message = "Authentication failed. Please log in again.",
+                    errorType = com.test.testing.discord.models.ErrorType.AUTHENTICATION,
+                )
             }
             exception.message?.contains("5") == true -> {
-                MapScreenUiState.Error.ServerError(
-                    message = "Server error occurred",
-                    code = 500,
+                MapScreenUiState.Error(
+                    message = "Server error occurred. Please try again later.",
+                    errorType = com.test.testing.discord.models.ErrorType.SERVER,
                 )
             }
             else -> {
-                MapScreenUiState.Error.NetworkError(
+                MapScreenUiState.Error(
                     message = exception.message ?: "Network error occurred",
+                    errorType = com.test.testing.discord.models.ErrorType.NETWORK,
                 )
             }
         }
@@ -189,11 +156,25 @@ class MapViewModel(
         refreshJob = null
     }
 
+    fun initializeForUser(user: User) {
+        // Initialize user-specific features
+        startPeriodicRefresh()
+    }
+
+    fun clearData() {
+        stopPeriodicRefresh()
+        _uiState.value = MapScreenUiState.Success(emptyList(), false)
+    }
+
     override fun onEvent(event: DomainEvent) {
         when (event) {
             is DomainEvent.UserLoggedOut -> {
                 stopPeriodicRefresh()
-                _uiState.value = MapScreenUiState.Error.AuthenticationError()
+                _uiState.value =
+                    MapScreenUiState.Error(
+                        message = "Authentication required. Please log in again.",
+                        errorType = com.test.testing.discord.models.ErrorType.AUTHENTICATION,
+                    )
             }
             is DomainEvent.DataCleared -> {
                 _uiState.value = MapScreenUiState.Success(emptyList(), false)

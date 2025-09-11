@@ -46,13 +46,11 @@ object AppConfig {
     val isRelease: Boolean = !BuildConfig.DEBUG
     val isDiscordSystemEnabled: Boolean = BuildConfig.USE_DISCORD_SYSTEM
 
-    // Feature Flags
+    // Feature Flags - Environment aware
     object Features {
-        const val ENABLE_LOCATION_SHARING = true
-        const val ENABLE_NEARBY_NOTIFICATIONS = true
-        const val ENABLE_OFFLINE_MODE = false // Future feature
-        const val ENABLE_ADVANCED_PRIVACY = true
-        const val ENABLE_PERFORMANCE_MONITORING = false // Can be changed at runtime
+        val ENABLE_DETAILED_LOGGING = isDebug
+        val ENABLE_CRASH_REPORTING = !isDebug
+        val ENABLE_ANALYTICS = !isDebug
     }
 
     // Environment-specific settings
@@ -61,12 +59,21 @@ object AppConfig {
             when {
                 baseUrl.contains("staging") -> "staging"
                 baseUrl.contains("dev") -> "development"
+                baseUrl.contains("localhost") -> "development"
                 else -> "production"
             }
 
         val isProduction: Boolean = name == "production"
         val isStaging: Boolean = name == "staging"
         val isDevelopment: Boolean = name == "development"
+
+        // Environment-specific configurations
+        val enableMockData: Boolean = isDevelopment
+        val enableNetworkLogging: Boolean = !isProduction
+        val enableStrictMode: Boolean = isDevelopment
+        val enableLeakCanary: Boolean = isDevelopment
+        val crashReportingEnabled: Boolean = isProduction || isStaging
+        val analyticsEnabled: Boolean = isProduction
     }
 
     // Logging Configuration

@@ -62,6 +62,7 @@ import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
 import com.test.testing.auth.AuthNavigation
 import com.test.testing.auth.AuthViewModel
+import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.ui.DiscordApp
 import com.test.testing.friends.AddFriendScreen
@@ -119,6 +120,7 @@ class MainActivity : ComponentActivity() {
 
         if (BuildConfig.USE_DISCORD_SYSTEM) {
             // Initialize Discord singletons
+            ApiClient.initialize(this)
             AuthManager.getInstance(this)
             // ADDED: Handle intent if the app is launched from the redirect
             handleAuthRedirect(intent)

@@ -22,17 +22,17 @@ import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.User
-import com.test.testing.discord.viewmodels.ApiViewModel
+import com.test.testing.discord.viewmodels.AppViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
-    apiViewModel: ApiViewModel,
+    appViewModel: AppViewModel,
     locationManager: LocationManager,
 ) {
-    val currentUser by apiViewModel.currentUser.collectAsState(initial = null)
-    val guilds by apiViewModel.guilds.collectAsState(initial = emptyList())
-    val users by apiViewModel.users.collectAsState(initial = emptyList())
+    val currentUser by appViewModel.currentUser.collectAsState()
+    val guilds by appViewModel.guilds.collectAsState()
+    val users by appViewModel.users.collectAsState()
 
     // Local UI state
     var selectedGuilds by remember { mutableStateOf(setOf<String>()) }
@@ -57,7 +57,7 @@ fun SettingsScreen(
     }
 
     val saveSettings = {
-        currentUser?.let { user ->
+        currentUser?.let { user: com.test.testing.discord.models.User ->
             val updatedUser =
                 user.copy(
                     privacy =
@@ -70,7 +70,7 @@ fun SettingsScreen(
                     nearbyNotificationDistance = nearbyNotificationDistance,
                     allowNearbyNotificationDistance = allowNearbyNotificationDistance,
                 )
-            apiViewModel.updateCurrentUser(updatedUser) {}
+            appViewModel.updateCurrentUser(updatedUser) {}
         }
     }
 
@@ -157,7 +157,7 @@ fun SettingsScreen(
 
         item {
             SectionHeader("Account")
-            AccountActionsView(apiViewModel = apiViewModel)
+            AccountActionsView(appViewModel = appViewModel)
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -377,7 +377,7 @@ fun NotificationSettingsView(
 }
 
 @Composable
-fun AccountActionsView(apiViewModel: ApiViewModel) {
+fun AccountActionsView(appViewModel: AppViewModel) {
     val context = LocalContext.current
     val authManager = AuthManager.getInstance(context)
     val coroutineScope = rememberCoroutineScope()
@@ -388,7 +388,7 @@ fun AccountActionsView(apiViewModel: ApiViewModel) {
         modifier =
             Modifier.clickable {
                 authManager.logout {
-                    coroutineScope.launch { apiViewModel.clearData() }
+                    coroutineScope.launch { appViewModel.logout() }
                 }
             },
     )
@@ -397,9 +397,9 @@ fun AccountActionsView(apiViewModel: ApiViewModel) {
         trailingContent = { Icon(Icons.Default.Delete, contentDescription = "Delete Data", tint = MaterialTheme.colorScheme.error) },
         modifier =
             Modifier.clickable {
-                apiViewModel.deleteUserData {
+                appViewModel.deleteUserData {
                     authManager.logout {
-                        coroutineScope.launch { apiViewModel.clearData() }
+                        coroutineScope.launch { appViewModel.logout() }
                     }
                 }
             },

@@ -13,9 +13,9 @@ import kotlinx.coroutines.launch
 class UserViewModel(
     application: Application,
     private val coroutineManager: CoroutineManager = CoroutineManager(),
-    private val userRepositoryImpl: UserRepositoryImpl = UserRepositoryImpl(ApiClient.apiService),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
+    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
     private val getCurrentUserUseCase = GetCurrentUserUseCase(userRepositoryImpl)
     private val getGuildsUseCase = GetGuildsUseCase(userRepositoryImpl)
     private val updateUserUseCase = UpdateCurrentUserUseCase(userRepositoryImpl)
@@ -145,7 +145,7 @@ class UserViewModel(
         }
     }
 
-    private fun clearData() {
+    fun clearData() {
         _currentUser.value = null
         _guilds.value = emptyList()
         _isLoading.value = false

@@ -21,7 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.ui.map.MapScreen
 import com.test.testing.discord.ui.settings.SettingsScreen
-import com.test.testing.discord.viewmodels.ApiViewModel
+import com.test.testing.discord.viewmodels.AppViewModel
 
 sealed class Screen(
     val route: String,
@@ -34,17 +34,17 @@ sealed class Screen(
 }
 
 @Composable
-fun MainScreen(apiViewModel: ApiViewModel) {
+fun MainScreen(appViewModel: AppViewModel) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val locationManager = remember { LocationManager.getInstance(context) }
 
     // Use a lifecycle effect to start/stop the timer when the MainScreen is shown/hidden
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        apiViewModel.startDataRefresh()
+        appViewModel.startDataRefresh()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        apiViewModel.stopDataRefresh()
+        // AppViewModel handles this automatically
     }
 
     PermissionHandler(locationManager)
@@ -77,8 +77,8 @@ fun MainScreen(apiViewModel: ApiViewModel) {
         },
     ) { innerPadding ->
         NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
-            composable(Screen.Map.route) { MapScreen(apiViewModel, locationManager) }
-            composable(Screen.Settings.route) { SettingsScreen(apiViewModel, locationManager) }
+            composable(Screen.Map.route) { MapScreen(appViewModel.mapViewModel, locationManager) }
+            composable(Screen.Settings.route) { SettingsScreen(appViewModel, locationManager) }
         }
     }
 }
