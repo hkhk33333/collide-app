@@ -1,12 +1,12 @@
 package com.test.testing.discord.auth
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Base64
 import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
 import com.test.testing.discord.Constants
 import com.test.testing.discord.api.ApiClient
+import com.test.testing.discord.models.DiscordTokenResponse
 import com.test.testing.discord.models.TokenRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,26 +18,40 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 class AuthManager private constructor(
-    private val context: Context,
+    context: Context,
 ) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("discord_auth", Context.MODE_PRIVATE)
+    // Use the new secure storage
+    private val secureTokenStorage = SecureTokenStorage(context)
     private var codeVerifier: String? = null
 
+    // StateFlows to hold in-memory state
     private val _isAuthenticated = MutableStateFlow<Boolean>(false)
     val isAuthenticated = _isAuthenticated.asStateFlow()
 
     private val _token = MutableStateFlow<String?>(null)
     val token = _token.asStateFlow()
 
+    // Holds the complete token information
+    private var currentToken: StoredToken? = null
+
     init {
-        val storedToken = prefs.getString(Constants.TOKEN_KEY, null)
-        if (!storedToken.isNullOrBlank()) {
-            _token.value = storedToken
+        // Load tokens from secure storage on initialization
+        currentToken = secureTokenStorage.getTokens()
+        if (isTokenValid()) {
+            _token.value = currentToken?.accessToken
             _isAuthenticated.value = true
+        } else {
+            // If the token is expired, clear it
+            secureTokenStorage.clearTokens()
         }
     }
 
-    // CHANGE IS HERE: The function now accepts a context parameter
+    private fun isTokenValid(): Boolean {
+        val expiresAt = currentToken?.expiresAt ?: return false
+        // Check if the token expires in the next 60 seconds to be safe
+        return expiresAt > System.currentTimeMillis() - 60000
+    }
+
     fun login(activityContext: Context) {
         codeVerifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(codeVerifier!!)
@@ -55,7 +69,6 @@ class AuthManager private constructor(
                 .build()
 
         val customTabsIntent = CustomTabsIntent.Builder().build()
-        // CHANGE IS HERE: Use the passed-in activityContext to launch the URL
         customTabsIntent.launchUrl(activityContext, authUrl)
     }
 
@@ -75,9 +88,9 @@ class AuthManager private constructor(
                     )
                 val response = ApiClient.apiService.exchangeCodeForToken(request)
                 if (response.isSuccessful && response.body() != null) {
-                    val accessToken = response.body()!!.accessToken
+                    val tokenResponse = response.body()!!
                     withContext(Dispatchers.Main) {
-                        saveToken(accessToken)
+                        saveToken(tokenResponse)
                     }
                 } else {
                     Log.e("AuthManager", "Token exchange failed: ${response.errorBody()?.string()}")
@@ -90,22 +103,28 @@ class AuthManager private constructor(
         }
     }
 
-    private fun saveToken(token: String) {
-        prefs.edit().putString(Constants.TOKEN_KEY, token).apply()
-        _token.value = token
+    private fun saveToken(tokenResponse: DiscordTokenResponse) {
+        secureTokenStorage.saveTokens(tokenResponse)
+        currentToken = secureTokenStorage.getTokens() // Reload from storage to have all computed fields
+
+        _token.value = currentToken?.accessToken
         _isAuthenticated.value = true
     }
 
     fun logout(onComplete: () -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val currentToken = "Bearer ${_token.value}"
-                ApiClient.apiService.revokeToken(currentToken)
+                val tokenVal = _token.value
+                if (tokenVal != null) {
+                    val currentTokenHeader = "Bearer $tokenVal"
+                    ApiClient.apiService.revokeToken(currentTokenHeader)
+                }
             } catch (e: Exception) {
                 Log.e("AuthManager", "Failed to revoke token", e)
             } finally {
                 withContext(Dispatchers.Main) {
-                    prefs.edit().remove(Constants.TOKEN_KEY).apply()
+                    secureTokenStorage.clearTokens() // Use secure storage to clear
+                    currentToken = null
                     _token.value = null
                     _isAuthenticated.value = false
                     onComplete()
@@ -138,6 +157,6 @@ class AuthManager private constructor(
             }
 
         val instance: AuthManager
-            get() = INSTANCE ?: throw IllegalStateException("AuthManager not initialized")
+            get() = INSTANCE ?: error("AuthManager not initialized")
     }
 }
