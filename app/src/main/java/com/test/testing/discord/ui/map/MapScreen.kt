@@ -73,9 +73,16 @@ fun MapScreen(
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
             is MapScreenUiState.Error -> {
-                // Show an error message
+                // Show an error message based on error type
+                val errorMessage =
+                    when (state) {
+                        is MapScreenUiState.Error.NetworkError -> state.message
+                        is MapScreenUiState.Error.AuthenticationError -> state.message
+                        is MapScreenUiState.Error.ServerError -> state.message ?: "Server error occurred"
+                        is MapScreenUiState.Error.UnknownError -> state.message ?: "An unknown error occurred"
+                    }
                 Text(
-                    text = state.message,
+                    text = errorMessage,
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.error,
                 )

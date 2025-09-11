@@ -8,9 +8,27 @@ sealed interface MapScreenUiState {
     data class Success(
         val users: List<User> = emptyList(),
         val isRefreshing: Boolean = false,
+        val lastUpdated: Long = System.currentTimeMillis(),
     ) : MapScreenUiState
 
-    data class Error(
-        val message: String,
-    ) : MapScreenUiState
+    sealed class Error : MapScreenUiState {
+        data class NetworkError(
+            val message: String,
+            val canRetry: Boolean = true,
+        ) : Error()
+
+        data class AuthenticationError(
+            val message: String = "Authentication failed. Please log in again.",
+        ) : Error()
+
+        data class ServerError(
+            val message: String,
+            val code: Int? = null,
+        ) : Error()
+
+        data class UnknownError(
+            val message: String,
+            val exception: Exception? = null,
+        ) : Error()
+    }
 }

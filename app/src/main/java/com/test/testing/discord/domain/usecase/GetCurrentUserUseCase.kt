@@ -1,11 +1,13 @@
 package com.test.testing.discord.domain.usecase
 
 import com.test.testing.discord.domain.repository.UserRepository
+import com.test.testing.discord.models.Result
 import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class GetCurrentUserUseCase(
     private val repository: UserRepository,
 ) {
-    operator fun invoke(token: String): Flow<User?> = repository.getCurrentUser(token)
+    operator fun invoke(token: String): Flow<Result<User?>> = repository.getCurrentUser(token)
 }

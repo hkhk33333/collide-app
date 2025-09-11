@@ -31,9 +31,9 @@ fun SettingsScreen(
     apiViewModel: ApiViewModel,
     locationManager: LocationManager,
 ) {
-    val currentUser by apiViewModel.currentUser.collectAsState()
-    val guilds by apiViewModel.guilds.collectAsState()
-    val users by apiViewModel.users.collectAsState()
+    val currentUser by apiViewModel.currentUser.collectAsState(initial = null)
+    val guilds by apiViewModel.guilds.collectAsState(initial = emptyList())
+    val users by apiViewModel.users.collectAsState(initial = emptyList())
 
     // Local UI state
     var selectedGuilds by remember { mutableStateOf(setOf<String>()) }

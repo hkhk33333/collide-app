@@ -4,6 +4,7 @@ import android.util.Log
 import com.test.testing.discord.api.ApiService
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.Guild
+import com.test.testing.discord.models.Result
 import com.test.testing.discord.models.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,52 +15,53 @@ import retrofit2.Response
 class UserRepositoryImpl(
     private val apiService: ApiService,
 ) : UserRepository {
-    override fun getCurrentUser(token: String): Flow<User?> =
+    override fun getCurrentUser(token: String): Flow<Result<User?>> =
         flow {
-            emit(handleApiResponse { apiService.getCurrentUser(token) })
+            emit(safeApiCall { apiService.getCurrentUser(token) })
         }.flowOn(Dispatchers.IO)
 
-    override fun getUsers(token: String): Flow<List<User>> =
+    override fun getUsers(token: String): Flow<Result<List<User>>> =
         flow {
-            emit(handleApiResponse { apiService.getUsers(token) } ?: emptyList())
+            val result = safeApiCall { apiService.getUsers(token) }
+            emit(result.map { it ?: emptyList() })
         }.flowOn(Dispatchers.IO)
 
-    override fun getGuilds(token: String): Flow<List<Guild>> =
+    override fun getGuilds(token: String): Flow<Result<List<Guild>>> =
         flow {
-            emit(handleApiResponse { apiService.getGuilds(token) } ?: emptyList())
+            val result = safeApiCall { apiService.getGuilds(token) }
+            emit(result.map { it ?: emptyList() })
         }.flowOn(Dispatchers.IO)
 
     override suspend fun updateUser(
         token: String,
         user: User,
-    ) {
-        handleApiResponse { apiService.updateCurrentUser(token, user) }
-    }
+    ): Result<Unit> =
+        safeApiCall {
+            apiService.updateCurrentUser(token, user)
+        }.map { Unit }
 
-    override suspend fun deleteUserData(token: String) {
-        try {
+    override suspend fun deleteUserData(token: String): Result<Unit> =
+        safeApiCall {
             apiService.deleteUserData(token)
-        } catch (e: Exception) {
-            Log.e("UserRepository", "Failed to delete user data", e)
-        }
-    }
+        }.map { Unit }
 
-    private suspend fun <T> handleApiResponse(apiCall: suspend () -> Response<T>): T? =
+    private suspend fun <T> safeApiCall(apiCall: suspend () -> Response<T>): Result<T> =
         try {
             val response = apiCall()
             if (response.isSuccessful) {
-                response.body()
+                val body = response.body()
+                if (body != null) {
+                    Result.success(body)
+                } else {
+                    Result.error("Response body is null")
+                }
             } else {
-                logApiError(response.code())
-                null
+                val errorMessage = "API Error: ${response.code()} - ${response.message()}"
+                Log.e("UserRepository", errorMessage)
+                Result.error(Exception(errorMessage))
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "API call failed", e)
-            null
+            Result.error(e)
         }
-
-    private fun logApiError(code: Int) {
-        val errorMessage = "API Error: Code $code"
-        Log.e("UserRepository", errorMessage)
-    }
 }

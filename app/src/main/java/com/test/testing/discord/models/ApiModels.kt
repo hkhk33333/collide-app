@@ -2,6 +2,52 @@ package com.test.testing.discord.models
 
 import com.google.gson.annotations.SerializedName
 
+// Result wrapper for better error handling
+sealed class Result<out T> {
+    data class Success<out T>(
+        val data: T,
+    ) : Result<T>()
+
+    data class Error(
+        val exception: Exception,
+    ) : Result<Nothing>()
+
+    val isSuccess: Boolean get() = this is Success
+    val isError: Boolean get() = this is Error
+
+    fun getOrNull(): T? =
+        when (this) {
+            is Success -> data
+            is Error -> null
+        }
+
+    fun getOrThrow(): T =
+        when (this) {
+            is Success -> data
+            is Error -> throw exception
+        }
+
+    fun <R> map(transform: (T) -> R): Result<R> =
+        when (this) {
+            is Success -> Success(transform(data))
+            is Error -> this
+        }
+
+    fun <R> flatMap(transform: (T) -> Result<R>): Result<R> =
+        when (this) {
+            is Success -> transform(data)
+            is Error -> this
+        }
+
+    companion object {
+        fun <T> success(data: T): Result<T> = Success(data)
+
+        fun error(exception: Exception): Result<Nothing> = Error(exception)
+
+        fun <T> error(message: String): Result<T> = Error(Exception(message))
+    }
+}
+
 // Corresponds to LocationSchema
 data class Location(
     @SerializedName("latitude") val latitude: Double,
