@@ -8,6 +8,7 @@ import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
 import com.test.testing.discord.domain.usecase.*
 import com.test.testing.discord.models.*
+import com.test.testing.discord.ui.settings.UserScreenUiState
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -23,17 +24,24 @@ class UserViewModel(
     private val deleteUserDataUseCase = DeleteUserDataUseCase(userRepositoryImpl)
     private val eventBus = SimpleEventBus()
 
-    private val _currentUser = MutableStateFlow<User?>(null)
-    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+    private val _uiState = MutableStateFlow<UserScreenUiState>(UserScreenUiState.Loading)
+    val uiState: StateFlow<UserScreenUiState> = _uiState.asStateFlow()
 
-    private val _guilds = MutableStateFlow<List<Guild>>(emptyList())
-    val guilds: StateFlow<List<Guild>> = _guilds.asStateFlow()
+    // Computed properties for backward compatibility
+    val currentUser: StateFlow<User?> =
+        uiState
+            .map { state -> state.currentUser }
+            .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    val guilds: StateFlow<List<Guild>> =
+        uiState
+            .map { state -> state.guilds }
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    val isLoading: StateFlow<Boolean> =
+        uiState
+            .map { state -> state.isLoading }
+            .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
     private val token: String?
         get() =
@@ -42,8 +50,22 @@ class UserViewModel(
 
     private val exceptionHandler =
         CoroutineExceptionHandler { _, throwable ->
-            _error.value = throwable.message ?: "An unknown error occurred"
-            _isLoading.value = false
+            val currentState = _uiState.value
+            when (currentState) {
+                is UserScreenUiState.Success -> {
+                    _uiState.value = currentState.copy(isLoading = false)
+                }
+                is UserScreenUiState.Error -> {
+                    _uiState.value = currentState.copy(isLoading = false)
+                }
+                else -> {
+                    _uiState.value =
+                        UserScreenUiState.Error(
+                            message = throwable.message ?: "An unknown error occurred",
+                            isLoading = false,
+                        )
+                }
+            }
         }
 
     init {
@@ -63,23 +85,32 @@ class UserViewModel(
     }
 
     private fun loadInitialData() {
-        if (token == null) return
+        if (token == null) {
+            _uiState.value =
+                UserScreenUiState.Error(
+                    message = "Authentication required. Please log in again.",
+                    errorType = ErrorType.AUTHENTICATION,
+                )
+            return
+        }
 
-        _isLoading.value = true
+        _uiState.value = UserScreenUiState.Loading
 
         viewModelScope.launch(exceptionHandler) {
             try {
+                var currentUserData: User? = null
+                var guildsData: List<Guild> = emptyList()
+
                 // Load current user
                 getCurrentUserUseCase(token!!).collect { result ->
                     when (result) {
                         is Result.Success -> {
                             result.data?.let {
-                                _currentUser.value = it
+                                currentUserData = it
                                 eventBus.publish(DomainEvent.UserDataUpdated(it))
                             }
                         }
                         is Result.Error -> {
-                            _error.value = result.exception.message
                             eventBus.publish(DomainEvent.NetworkError("getCurrentUser", result.exception))
                         }
                     }
@@ -88,16 +119,28 @@ class UserViewModel(
                 // Load guilds
                 getGuildsUseCase(token!!).collect { result ->
                     when (result) {
-                        is Result.Success -> _guilds.value = result.data
+                        is Result.Success -> guildsData = result.data
 
                         is Result.Error -> {
-                            _error.value = result.exception.message
                             eventBus.publish(DomainEvent.NetworkError("getGuilds", result.exception))
                         }
                     }
                 }
-            } finally {
-                _isLoading.value = false
+
+                // Set final state
+                _uiState.value =
+                    UserScreenUiState.Success(
+                        currentUser = currentUserData,
+                        guilds = guildsData,
+                        isLoading = false,
+                    )
+            } catch (e: Exception) {
+                _uiState.value =
+                    UserScreenUiState.Error(
+                        message = e.message ?: "Failed to load user data",
+                        errorType = ErrorType.UNKNOWN,
+                        isLoading = false,
+                    )
             }
         }
     }
@@ -111,25 +154,56 @@ class UserViewModel(
             return
         }
 
-        _isLoading.value = true
+        val currentState = _uiState.value
+        when (currentState) {
+            is UserScreenUiState.Success -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            else -> {
+                _uiState.value = UserScreenUiState.Loading
+            }
+        }
 
         viewModelScope.launch(exceptionHandler) {
             try {
                 val result = updateUserUseCase(token!!, user)
                 when (result) {
                     is Result.Success -> {
-                        _currentUser.value = user
+                        val updatedState =
+                            (_uiState.value as? UserScreenUiState.Success)?.copy(
+                                currentUser = user,
+                                isLoading = false,
+                            ) ?: UserScreenUiState.Success(
+                                currentUser = user,
+                                guilds = emptyList(),
+                                isLoading = false,
+                            )
+                        _uiState.value = updatedState
                         eventBus.publish(DomainEvent.UserDataUpdated(user))
                         onComplete(result)
                     }
                     is Result.Error -> {
-                        _error.value = result.exception.message
+                        val errorState =
+                            UserScreenUiState.Error(
+                                message = result.exception.message ?: "Failed to update user",
+                                errorType = ErrorType.UNKNOWN,
+                                canRetry = true,
+                                isLoading = false,
+                            )
+                        _uiState.value = errorState
                         eventBus.publish(DomainEvent.NetworkError("updateCurrentUser", result.exception))
                         onComplete(result)
                     }
                 }
-            } finally {
-                _isLoading.value = false
+            } catch (e: Exception) {
+                val errorState =
+                    UserScreenUiState.Error(
+                        message = e.message ?: "Failed to update user",
+                        errorType = ErrorType.UNKNOWN,
+                        canRetry = true,
+                        isLoading = false,
+                    )
+                _uiState.value = errorState
             }
         }
     }
@@ -140,7 +214,15 @@ class UserViewModel(
             return
         }
 
-        _isLoading.value = true
+        val currentState = _uiState.value
+        when (currentState) {
+            is UserScreenUiState.Success -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            else -> {
+                _uiState.value = UserScreenUiState.Loading
+            }
+        }
 
         viewModelScope.launch(exceptionHandler) {
             try {
@@ -148,25 +230,47 @@ class UserViewModel(
                 when (result) {
                     is Result.Success -> {
                         eventBus.publish(DomainEvent.DataCleared)
+                        _uiState.value =
+                            UserScreenUiState.Success(
+                                currentUser = null,
+                                guilds = emptyList(),
+                                isLoading = false,
+                            )
                         onComplete(result)
                     }
                     is Result.Error -> {
-                        _error.value = result.exception.message
+                        val errorState =
+                            UserScreenUiState.Error(
+                                message = result.exception.message ?: "Failed to delete user data",
+                                errorType = ErrorType.UNKNOWN,
+                                canRetry = true,
+                                isLoading = false,
+                            )
+                        _uiState.value = errorState
                         eventBus.publish(DomainEvent.NetworkError("deleteUserData", result.exception))
                         onComplete(result)
                     }
                 }
-            } finally {
-                _isLoading.value = false
+            } catch (e: Exception) {
+                val errorState =
+                    UserScreenUiState.Error(
+                        message = e.message ?: "Failed to delete user data",
+                        errorType = ErrorType.UNKNOWN,
+                        canRetry = true,
+                        isLoading = false,
+                    )
+                _uiState.value = errorState
             }
         }
     }
 
     fun clearData() {
-        _currentUser.value = null
-        _guilds.value = emptyList()
-        _isLoading.value = false
-        _error.value = null
+        _uiState.value =
+            UserScreenUiState.Success(
+                currentUser = null,
+                guilds = emptyList(),
+                isLoading = false,
+            )
     }
 
     override fun onEvent(event: DomainEvent) {

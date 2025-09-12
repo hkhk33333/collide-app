@@ -5,10 +5,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.models.DomainEvent
+import com.test.testing.discord.models.DomainEventSubscriber
 import com.test.testing.discord.models.SimpleEventBus
+import com.test.testing.discord.ui.login.AuthScreenUiState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -21,27 +26,47 @@ import kotlinx.coroutines.launch
  */
 class AuthViewModel(
     application: Application,
-) : AndroidViewModel(application) {
+) : AndroidViewModel(application),
+    DomainEventSubscriber {
     private val authManager = AuthManager.getInstance(application)
     private val eventBus = SimpleEventBus()
 
-    private val _isAuthenticated = MutableStateFlow(authManager.isAuthenticated.value)
-    val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
+    private val _uiState =
+        MutableStateFlow<AuthScreenUiState>(
+            if (authManager.isAuthenticated.value) {
+                AuthScreenUiState.Authenticated()
+            } else {
+                AuthScreenUiState.Unauthenticated()
+            },
+        )
+    val uiState: StateFlow<AuthScreenUiState> = _uiState.asStateFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    // Computed properties for backward compatibility
+    val isAuthenticated: StateFlow<Boolean> =
+        uiState
+            .map { state: AuthScreenUiState -> state.isAuthenticated }
+            .stateIn(viewModelScope, SharingStarted.Lazily, authManager.isAuthenticated.value)
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    val isLoading: StateFlow<Boolean> =
+        uiState
+            .map { state: AuthScreenUiState -> state.isLoading }
+            .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
     init {
+        eventBus.subscribe(this)
         observeAuthState()
     }
 
     private fun observeAuthState() {
         viewModelScope.launch {
             authManager.isAuthenticated.collect { authenticated ->
-                _isAuthenticated.value = authenticated
+                val newState =
+                    if (authenticated) {
+                        AuthScreenUiState.Authenticated()
+                    } else {
+                        AuthScreenUiState.Unauthenticated()
+                    }
+                _uiState.value = newState
                 if (!authenticated) {
                     eventBus.publish(DomainEvent.UserLoggedOut)
                 }
@@ -62,27 +87,78 @@ class AuthViewModel(
     }
 
     fun login() {
-        _isLoading.value = true
-        _error.value = null
+        val currentState = _uiState.value
+        when (currentState) {
+            is AuthScreenUiState.Authenticated -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            is AuthScreenUiState.Unauthenticated -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            else -> {
+                _uiState.value = AuthScreenUiState.Loading()
+            }
+        }
         // AuthManager handles the actual login flow - context is passed from UI
-        _isLoading.value = false
+        // The auth state change will be observed and update the UiState accordingly
     }
 
     fun logout(onComplete: (() -> Unit)? = null) {
-        _isLoading.value = true
+        val currentState = _uiState.value
+        when (currentState) {
+            is AuthScreenUiState.Authenticated -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            is AuthScreenUiState.Unauthenticated -> {
+                _uiState.value = currentState.copy(isLoading = true)
+            }
+            else -> {
+                _uiState.value = AuthScreenUiState.Loading()
+            }
+        }
+
         authManager.logout {
-            _isLoading.value = false
-            _error.value = null
+            // The auth state change will be observed and update the UiState accordingly
+            // Clear any error state
+            val currentUiState = _uiState.value
+            when (currentUiState) {
+                is AuthScreenUiState.Error -> {
+                    _uiState.value = AuthScreenUiState.Unauthenticated()
+                }
+
+                else -> {
+                    // UiState will be updated by observeAuthState when authManager.isAuthenticated changes
+                }
+            }
             onComplete?.invoke()
         }
     }
 
     fun clearError() {
-        _error.value = null
+        val currentState = _uiState.value
+        if (currentState is AuthScreenUiState.Error) {
+            _uiState.value = AuthScreenUiState.Unauthenticated()
+        }
+    }
+
+    // Handle domain events
+    override fun onEvent(event: DomainEvent) {
+        when (event) {
+            is DomainEvent.UserLoggedOut -> {
+                _uiState.value = AuthScreenUiState.Unauthenticated()
+            }
+            is DomainEvent.DataCleared -> {
+                _uiState.value = AuthScreenUiState.Unauthenticated()
+            }
+            else -> {
+                // Handle other events if needed
+            }
+        }
     }
 
     override fun onCleared() {
         super.onCleared()
+        eventBus.unsubscribe(this)
         // AuthManager is a singleton, no cleanup needed
     }
 }
