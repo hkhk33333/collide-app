@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -21,7 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.ui.map.MapScreen
 import com.test.testing.discord.ui.settings.SettingsScreen
-import com.test.testing.discord.viewmodels.AppViewModel
+import com.test.testing.discord.viewmodels.MapViewModel
+import com.test.testing.discord.viewmodels.UserViewModel
 
 sealed class Screen(
     val route: String,
@@ -34,17 +36,31 @@ sealed class Screen(
 }
 
 @Composable
-fun MainScreen(appViewModel: AppViewModel) {
+fun MainScreen() {
     val navController = rememberNavController()
     val context = LocalContext.current
     val locationManager = remember { LocationManager.getInstance(context) }
 
-    // Use a lifecycle effect to start/stop the timer when the MainScreen is shown/hidden
+    // These ViewModels are now scoped to the MainScreen's lifecycle
+    val mapViewModel: MapViewModel = viewModel()
+    val userViewModel: UserViewModel = viewModel()
+
+    val currentUser by userViewModel.currentUser.collectAsState()
+    val users by mapViewModel.users.collectAsState()
+
+    // This effect coordinates between UserViewModel and MapViewModel
+    LaunchedEffect(currentUser) {
+        currentUser?.let {
+            mapViewModel.initializeForUser()
+        }
+    }
+
+    // Use a lifecycle effect to start/stop the data refresh timer
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        appViewModel.startDataRefresh()
+        mapViewModel.startPeriodicRefresh()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        // AppViewModel handles this automatically
+        mapViewModel.stopPeriodicRefresh()
     }
 
     PermissionHandler(locationManager)
@@ -77,8 +93,8 @@ fun MainScreen(appViewModel: AppViewModel) {
         },
     ) { innerPadding ->
         NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
-            composable(Screen.Map.route) { MapScreen(appViewModel.mapViewModel, locationManager) }
-            composable(Screen.Settings.route) { SettingsScreen(appViewModel, locationManager) }
+            composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
+            composable(Screen.Settings.route) { SettingsScreen(userViewModel, users, locationManager) }
         }
     }
 }

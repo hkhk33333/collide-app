@@ -2,6 +2,7 @@ package com.test.testing.discord.data.repository
 
 import android.content.Context
 import android.location.Location
+import android.util.Log
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.domain.repository.LocationRepository
@@ -142,6 +143,7 @@ class LocationRepositoryImpl(
                 null
             }
         } catch (e: Exception) {
+            Log.e("LocationRepositoryImpl", "Failed to get current user", e)
             null
         }
 }

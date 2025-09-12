@@ -36,25 +36,30 @@ class NetworkResilience private constructor(
      */
     fun isNetworkAvailable(): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
+        var isConnected = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-
-            return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            val network = connectivityManager.activeNetwork
+            val capabilities = connectivityManager.getNetworkCapabilities(network)
+            if (capabilities != null) {
+                isConnected = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            }
         } else {
             @Suppress("DEPRECATION")
-            val networkInfo = connectivityManager.activeNetworkInfo ?: return false
+            val networkInfo = connectivityManager.activeNetworkInfo
             @Suppress("DEPRECATION")
-            return networkInfo.isConnected
+            if (networkInfo != null) {
+                isConnected = networkInfo.isConnected
+            }
         }
+        return isConnected
     }
 
     /**
      * Execute network operation with retry logic and resilience
      */
+    @Suppress("ReturnCount")
     suspend fun <T> executeWithResilience(
         operation: suspend () -> Result<T>,
         maxRetries: Int = AppConfig.MAX_RETRY_ATTEMPTS,
@@ -200,66 +205,5 @@ class NetworkResilience private constructor(
                 throw e
             }
         }
-    }
-
-    /**
-     * Circuit breaker for preventing cascade failures
-     */
-    class CircuitBreaker(
-        private val failureThreshold: Int = 5,
-        private val timeoutMs: Long = 60000, // 1 minute
-    ) {
-        private var failureCount = 0
-        private var lastFailureTime = 0L
-        private var state = CircuitState.CLOSED
-
-        enum class CircuitState {
-            CLOSED, // Normal operation
-            OPEN, // Failing, reject requests
-            HALF_OPEN, // Testing if service recovered
-        }
-
-        fun call(block: () -> Response): Response {
-            when (state) {
-                CircuitState.OPEN -> {
-                    if (System.currentTimeMillis() - lastFailureTime > timeoutMs) {
-                        state = CircuitState.HALF_OPEN
-                    } else {
-                        throw IOException("Circuit breaker is OPEN")
-                    }
-                }
-                CircuitState.HALF_OPEN -> {
-                    // Allow one request through
-                }
-                CircuitState.CLOSED -> {
-                    // Normal operation
-                }
-            }
-
-            return try {
-                val response = block()
-                onSuccess()
-                response
-            } catch (e: Exception) {
-                onFailure()
-                throw e
-            }
-        }
-
-        private fun onSuccess() {
-            failureCount = 0
-            state = CircuitState.CLOSED
-        }
-
-        private fun onFailure() {
-            failureCount++
-            lastFailureTime = System.currentTimeMillis()
-
-            if (failureCount >= failureThreshold) {
-                state = CircuitState.OPEN
-            }
-        }
-
-        fun getState(): CircuitState = state
     }
 }

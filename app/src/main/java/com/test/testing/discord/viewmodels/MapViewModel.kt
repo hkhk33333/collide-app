@@ -9,6 +9,7 @@ import com.test.testing.discord.data.repository.UserRepositoryImpl
 import com.test.testing.discord.domain.usecase.GetUsersUseCase
 import com.test.testing.discord.models.*
 import com.test.testing.discord.ui.map.MapScreenUiState
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -16,7 +17,6 @@ import kotlinx.coroutines.launch
 
 class MapViewModel(
     application: Application,
-    private val coroutineManager: CoroutineManager = CoroutineManager(),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
     private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
@@ -26,7 +26,6 @@ class MapViewModel(
     private val _uiState = MutableStateFlow<MapScreenUiState>(MapScreenUiState.Loading)
     val uiState: StateFlow<MapScreenUiState> = _uiState.asStateFlow()
 
-    // Convenience flow for accessing users list
     val users: StateFlow<List<User>> =
         uiState
             .map { state ->
@@ -43,6 +42,11 @@ class MapViewModel(
         get() =
             AuthManager.instance.token.value
                 ?.let { "Bearer $it" }
+
+    private val exceptionHandler =
+        CoroutineExceptionHandler { _, throwable ->
+            _uiState.value = mapExceptionToUiState(throwable as? Exception ?: Exception("Unknown error"))
+        }
 
     init {
         eventBus.subscribe(this)
@@ -61,7 +65,7 @@ class MapViewModel(
 
         _uiState.value = MapScreenUiState.Loading
 
-        coroutineManager.launch {
+        viewModelScope.launch(exceptionHandler) {
             getUsersUseCase(token!!).collect { result ->
                 when (result) {
                     is Result.Success -> {
@@ -73,8 +77,7 @@ class MapViewModel(
                         eventBus.publish(DomainEvent.DataRefreshCompleted(true))
                     }
                     is Result.Error -> {
-                        val errorState = mapExceptionToUiState(result.exception)
-                        _uiState.value = errorState
+                        _uiState.value = mapExceptionToUiState(result.exception)
                         eventBus.publish(DomainEvent.DataRefreshCompleted(false))
                     }
                 }
@@ -90,7 +93,7 @@ class MapViewModel(
             return // Prevent multiple concurrent refreshes
         }
 
-        coroutineManager.launch {
+        viewModelScope.launch(exceptionHandler) {
             if (currentState is MapScreenUiState.Success) {
                 _uiState.value = currentState.copy(isRefreshing = true)
             }
@@ -143,7 +146,7 @@ class MapViewModel(
         if (refreshJob?.isActive == true) return
 
         refreshJob =
-            coroutineManager.launch {
+            viewModelScope.launch(exceptionHandler) {
                 while (true) {
                     delay(refreshInterval)
                     refreshUsers()
@@ -156,7 +159,7 @@ class MapViewModel(
         refreshJob = null
     }
 
-    fun initializeForUser(user: User) {
+    fun initializeForUser() {
         // Initialize user-specific features
         startPeriodicRefresh()
     }

@@ -180,7 +180,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun sendRegistrationToServer(token: String) {
-        // TODO: Send token to your backend server
+        // The FCM token should be sent to your backend server here.
         // You can use your ApiService to send the FCM token to your backend
         // This token can be associated with the current user for targeted notifications
 

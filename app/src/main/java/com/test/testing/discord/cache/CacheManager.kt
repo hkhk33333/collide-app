@@ -164,6 +164,7 @@ class CacheManager private constructor(
 
                 entry.isFresh()
             } catch (e: Exception) {
+                Log.e("CacheManager", "Failed to check for fresh data for key: ${key.key}", e)
                 false
             }
         }

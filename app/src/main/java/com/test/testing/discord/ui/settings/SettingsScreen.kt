@@ -8,7 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -22,17 +21,16 @@ import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.User
-import com.test.testing.discord.viewmodels.AppViewModel
-import kotlinx.coroutines.launch
+import com.test.testing.discord.viewmodels.UserViewModel
 
 @Composable
 fun SettingsScreen(
-    appViewModel: AppViewModel,
+    userViewModel: UserViewModel,
+    users: List<User>,
     locationManager: LocationManager,
 ) {
-    val currentUser by appViewModel.currentUser.collectAsState()
-    val guilds by appViewModel.guilds.collectAsState()
-    val users by appViewModel.users.collectAsState()
+    val currentUser by userViewModel.currentUser.collectAsState()
+    val guilds by userViewModel.guilds.collectAsState()
 
     // Local UI state
     var selectedGuilds by remember { mutableStateOf(setOf<String>()) }
@@ -70,7 +68,7 @@ fun SettingsScreen(
                     nearbyNotificationDistance = nearbyNotificationDistance,
                     allowNearbyNotificationDistance = allowNearbyNotificationDistance,
                 )
-            appViewModel.updateCurrentUser(updatedUser) {}
+            userViewModel.updateCurrentUser(updatedUser) {}
         }
     }
 
@@ -157,7 +155,7 @@ fun SettingsScreen(
 
         item {
             SectionHeader("Account")
-            AccountActionsView(appViewModel = appViewModel)
+            AccountActionsView(userViewModel = userViewModel)
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -195,7 +193,6 @@ fun ServerListView(
         ListItem(
             headlineContent = { Text(guild.name) },
             leadingContent = {
-                // THE FIX IS HERE
                 Box(
                     modifier =
                         Modifier
@@ -241,7 +238,6 @@ fun UserListView(
             headlineContent = { Text(user.duser.username) },
             supportingContent = { if (user.id == currentUser?.id) Text("You") },
             leadingContent = {
-                // THE FIX IS HERE
                 Box(
                     modifier =
                         Modifier
@@ -377,10 +373,9 @@ fun NotificationSettingsView(
 }
 
 @Composable
-fun AccountActionsView(appViewModel: AppViewModel) {
+fun AccountActionsView(userViewModel: UserViewModel) {
     val context = LocalContext.current
     val authManager = AuthManager.getInstance(context)
-    val coroutineScope = rememberCoroutineScope()
 
     ListItem(
         headlineContent = { Text("Logout", color = MaterialTheme.colorScheme.error) },
@@ -388,7 +383,7 @@ fun AccountActionsView(appViewModel: AppViewModel) {
         modifier =
             Modifier.clickable {
                 authManager.logout {
-                    coroutineScope.launch { appViewModel.logout() }
+                    // The change in auth state will trigger recomposition and data clearing via DomainEvent
                 }
             },
     )
@@ -397,9 +392,9 @@ fun AccountActionsView(appViewModel: AppViewModel) {
         trailingContent = { Icon(Icons.Default.Delete, contentDescription = "Delete Data", tint = MaterialTheme.colorScheme.error) },
         modifier =
             Modifier.clickable {
-                appViewModel.deleteUserData {
+                userViewModel.deleteUserData {
                     authManager.logout {
-                        coroutineScope.launch { appViewModel.logout() }
+                        // The change in auth state will trigger recomposition
                     }
                 }
             },

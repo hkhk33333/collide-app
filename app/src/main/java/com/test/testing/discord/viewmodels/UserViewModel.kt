@@ -2,17 +2,18 @@ package com.test.testing.discord.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
 import com.test.testing.discord.domain.usecase.*
 import com.test.testing.discord.models.*
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class UserViewModel(
     application: Application,
-    private val coroutineManager: CoroutineManager = CoroutineManager(),
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
     private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
@@ -31,10 +32,19 @@ class UserViewModel(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private val token: String?
         get() =
             AuthManager.instance.token.value
                 ?.let { "Bearer $it" }
+
+    private val exceptionHandler =
+        CoroutineExceptionHandler { _, throwable ->
+            _error.value = throwable.message ?: "An unknown error occurred"
+            _isLoading.value = false
+        }
 
     init {
         eventBus.subscribe(this)
@@ -46,16 +56,19 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        coroutineManager.launch {
+        viewModelScope.launch(exceptionHandler) {
             try {
                 // Load current user
                 getCurrentUserUseCase(token!!).collect { result ->
                     when (result) {
                         is Result.Success -> {
-                            _currentUser.value = result.data
-                            eventBus.publish(DomainEvent.UserDataUpdated(result.data!!))
+                            result.data?.let {
+                                _currentUser.value = it
+                                eventBus.publish(DomainEvent.UserDataUpdated(it))
+                            }
                         }
                         is Result.Error -> {
+                            _error.value = result.exception.message
                             eventBus.publish(DomainEvent.NetworkError("getCurrentUser", result.exception))
                         }
                     }
@@ -67,6 +80,7 @@ class UserViewModel(
                         is Result.Success -> _guilds.value = result.data
 
                         is Result.Error -> {
+                            _error.value = result.exception.message
                             eventBus.publish(DomainEvent.NetworkError("getGuilds", result.exception))
                         }
                     }
@@ -88,7 +102,7 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        coroutineManager.launch {
+        viewModelScope.launch(exceptionHandler) {
             try {
                 val result = updateUserUseCase(token!!, user)
                 when (result) {
@@ -98,6 +112,7 @@ class UserViewModel(
                         onComplete(result)
                     }
                     is Result.Error -> {
+                        _error.value = result.exception.message
                         eventBus.publish(DomainEvent.NetworkError("updateCurrentUser", result.exception))
                         onComplete(result)
                     }
@@ -116,7 +131,7 @@ class UserViewModel(
 
         _isLoading.value = true
 
-        coroutineManager.launch {
+        viewModelScope.launch(exceptionHandler) {
             try {
                 val result = deleteUserDataUseCase(token!!)
                 when (result) {
@@ -125,6 +140,7 @@ class UserViewModel(
                         onComplete(result)
                     }
                     is Result.Error -> {
+                        _error.value = result.exception.message
                         eventBus.publish(DomainEvent.NetworkError("deleteUserData", result.exception))
                         onComplete(result)
                     }
@@ -135,20 +151,11 @@ class UserViewModel(
         }
     }
 
-    fun logout(onComplete: () -> Unit = {}) {
-        coroutineManager.launch {
-            AuthManager.instance.logout {
-                clearData()
-                eventBus.publish(DomainEvent.UserLoggedOut)
-                onComplete()
-            }
-        }
-    }
-
     fun clearData() {
         _currentUser.value = null
         _guilds.value = emptyList()
         _isLoading.value = false
+        _error.value = null
     }
 
     override fun onEvent(event: DomainEvent) {

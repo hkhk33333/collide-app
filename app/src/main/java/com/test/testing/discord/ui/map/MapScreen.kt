@@ -1,5 +1,6 @@
 package com.test.testing.discord.ui.map
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -157,12 +158,14 @@ fun UserMarker(
                             val bitmap = drawable.toBitmap()
                             bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(bitmap)
                         } catch (e: Exception) {
+                            Log.e("MapScreen", "Failed to process user avatar bitmap", e)
                             // Fallback to default marker if image processing fails
                             bitmapDescriptor = null
                         }
                     }.build()
             imageLoader.enqueue(request)
         } catch (e: Exception) {
+            Log.e("MapScreen", "Failed to load user avatar image", e)
             // If image loading fails, use default marker
             bitmapDescriptor = null
         }
