@@ -51,6 +51,17 @@ class UserViewModel(
         loadInitialData()
     }
 
+    // Handle UI events
+    fun onEvent(event: com.test.testing.discord.ui.UiEvent) {
+        when (event) {
+            is com.test.testing.discord.ui.UiEvent.UpdateUser -> updateCurrentUser(event.user) {}
+            is com.test.testing.discord.ui.UiEvent.DeleteUserData -> deleteUserData {}
+            else -> {
+                // Handle other events if needed
+            }
+        }
+    }
+
     private fun loadInitialData() {
         if (token == null) return
 

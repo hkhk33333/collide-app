@@ -43,6 +43,11 @@ fun MapScreen(
     val currentUserLocation by locationManager.locationUpdates.collectAsState()
     var hasInitiallyCentered by remember { mutableStateOf(false) }
 
+    // Debug logging for state changes
+    LaunchedEffect(uiState) {
+        android.util.Log.d("MapScreen", "UI state changed: $uiState, isRefreshing: ${uiState.isRefreshing}")
+    }
+
     // THE FIX: Add a state to track if the map has finished loading.
     var isMapLoaded by remember { mutableStateOf(false) }
 
@@ -80,6 +85,36 @@ fun MapScreen(
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.error,
                 )
+
+                // The refresh button and other UI can be layered on top even in error state
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp)
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.isRefreshing) {
+                        // Show loading indicator on the refresh button when refreshing
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    } else {
+                        // Show refresh button when not refreshing
+                        IconButton(onClick = {
+                            android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
+                            mapViewModel.refreshUsers()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh Users",
+                            )
+                        }
+                    }
+                }
             }
             is MapScreenUiState.Success -> {
                 // On success, display the map and markers
@@ -121,7 +156,10 @@ fun MapScreen(
                         )
                     } else {
                         // Show refresh button when not refreshing
-                        IconButton(onClick = { mapViewModel.refreshUsers() }) {
+                        IconButton(onClick = {
+                            android.util.Log.d("MapScreen", "Refresh button clicked from Success state")
+                            mapViewModel.refreshUsers()
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Refresh Users",

@@ -27,6 +27,7 @@ sealed interface MapScreenUiState {
         val errorType: com.test.testing.discord.models.ErrorType = com.test.testing.discord.models.ErrorType.UNKNOWN,
         val canRetry: Boolean = false,
         val actions: List<UiAction> = emptyList(),
+        override val isRefreshing: Boolean = false,
     ) : MapScreenUiState {
         val shouldShowRetryButton: Boolean = canRetry && actions.contains(UiAction.Retry)
     }
@@ -48,6 +49,7 @@ sealed interface MapScreenUiState {
                         message = uiState.message,
                         canRetry = uiState.canRetry,
                         actions = if (uiState.canRetry) listOf(UiAction.Retry) else emptyList(),
+                        isRefreshing = isRefreshing,
                     )
             }
     }

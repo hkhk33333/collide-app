@@ -83,3 +83,25 @@ data class ErrorState(
         }
     }
 }
+
+/**
+ * UI Events for ViewModel communication
+ */
+sealed class UiEvent {
+    // Map-related events
+    object RefreshUsers : UiEvent()
+
+    object LoadUsers : UiEvent()
+
+    // User-related events
+    data class UpdateUser(
+        val user: com.test.testing.discord.models.User,
+    ) : UiEvent()
+
+    object DeleteUserData : UiEvent()
+
+    // Auth-related events
+    object Login : UiEvent()
+
+    object Logout : UiEvent()
+}

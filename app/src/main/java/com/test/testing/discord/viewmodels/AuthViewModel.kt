@@ -49,6 +49,18 @@ class AuthViewModel(
         }
     }
 
+    // Handle UI events
+    fun onEvent(event: com.test.testing.discord.ui.UiEvent) {
+        when (event) {
+            is com.test.testing.discord.ui.UiEvent.Login -> login()
+            is com.test.testing.discord.ui.UiEvent.Logout -> logout()
+            else -> {
+                // Handle other events if needed
+
+            }
+        }
+    }
+
     fun login() {
         _isLoading.value = true
         _error.value = null

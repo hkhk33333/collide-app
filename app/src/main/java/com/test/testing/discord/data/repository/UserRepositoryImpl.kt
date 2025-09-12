@@ -23,15 +23,20 @@ class UserRepositoryImpl(
     private val cacheManager: CacheManager = CacheManager.getInstance(context),
     private val networkResilience: NetworkResilience = NetworkResilience.getInstance(context),
 ) : UserRepository {
-    override fun getCurrentUser(token: String): Flow<Result<User?>> =
+    override fun getCurrentUser(
+        token: String,
+        forceRefresh: Boolean,
+    ): Flow<Result<User?>> =
         flow {
-            // First try to get from cache
-            val cachedUser = cacheManager.get<User?>(CacheManager.CacheKey.CURRENT_USER)
-            if (cachedUser != null) {
-                emit(Result.success(cachedUser))
+            // Only try cache if not forcing refresh
+            if (!forceRefresh) {
+                val cachedUser = cacheManager.get<User?>(CacheManager.CacheKey.CURRENT_USER)
+                if (cachedUser != null) {
+                    emit(Result.success(cachedUser))
+                }
             }
 
-            // Then try network call with resilience
+            // Try network call with resilience
             val networkResult: Result<User?> =
                 networkResilience.executeWithResilience(
                     operation = {
@@ -54,15 +59,20 @@ class UserRepositoryImpl(
             emit(networkResult)
         }.flowOn(Dispatchers.IO)
 
-    override fun getUsers(token: String): Flow<Result<List<User>>> =
+    override fun getUsers(
+        token: String,
+        forceRefresh: Boolean,
+    ): Flow<Result<List<User>>> =
         flow {
-            // First try to get from cache
-            val cachedUsers = cacheManager.get<List<User>>(CacheManager.CacheKey.USERS)
-            if (cachedUsers != null) {
-                emit(Result.success(cachedUsers))
+            // Only try cache if not forcing refresh
+            if (!forceRefresh) {
+                val cachedUsers = cacheManager.get<List<User>>(CacheManager.CacheKey.USERS)
+                if (cachedUsers != null) {
+                    emit(Result.success(cachedUsers))
+                }
             }
 
-            // Then try network call with resilience
+            // Try network call with resilience
             val networkResult =
                 networkResilience.executeWithResilience(
                     operation = {
@@ -87,15 +97,20 @@ class UserRepositoryImpl(
             emit(networkResult)
         }.flowOn(Dispatchers.IO)
 
-    override fun getGuilds(token: String): Flow<Result<List<Guild>>> =
+    override fun getGuilds(
+        token: String,
+        forceRefresh: Boolean,
+    ): Flow<Result<List<Guild>>> =
         flow {
-            // First try to get from cache
-            val cachedGuilds = cacheManager.get<List<Guild>>(CacheManager.CacheKey.GUILDS)
-            if (cachedGuilds != null) {
-                emit(Result.success(cachedGuilds))
+            // Only try cache if not forcing refresh
+            if (!forceRefresh) {
+                val cachedGuilds = cacheManager.get<List<Guild>>(CacheManager.CacheKey.GUILDS)
+                if (cachedGuilds != null) {
+                    emit(Result.success(cachedGuilds))
+                }
             }
 
-            // Then try network call with resilience
+            // Try network call with resilience
             val networkResult =
                 networkResilience.executeWithResilience(
                     operation = {

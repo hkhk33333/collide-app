@@ -6,11 +6,20 @@ import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
 
 interface UserRepository {
-    fun getCurrentUser(token: String): Flow<Result<User?>>
+    fun getCurrentUser(
+        token: String,
+        forceRefresh: Boolean = false,
+    ): Flow<Result<User?>>
 
-    fun getUsers(token: String): Flow<Result<List<User>>>
+    fun getUsers(
+        token: String,
+        forceRefresh: Boolean = false,
+    ): Flow<Result<List<User>>>
 
-    fun getGuilds(token: String): Flow<Result<List<Guild>>>
+    fun getGuilds(
+        token: String,
+        forceRefresh: Boolean = false,
+    ): Flow<Result<List<Guild>>>
 
     suspend fun updateUser(
         token: String,
