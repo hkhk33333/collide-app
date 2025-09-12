@@ -75,7 +75,7 @@ class LocationRepositoryImpl(
                     val currentUser = getCurrentUser()
                     if (currentUser != null) {
                         val updatedUser = currentUser.copy(location = locationData)
-                        val response = ApiClient.apiService.updateCurrentUser(token!!, updatedUser)
+                        val response = ApiClient.getInstance().apiService.updateCurrentUser(token!!, updatedUser)
 
                         if (response.isSuccessful) {
                             Result.success(Unit)
@@ -136,7 +136,7 @@ class LocationRepositoryImpl(
      */
     private suspend fun getCurrentUser(): User? =
         try {
-            val response = ApiClient.apiService.getCurrentUser(token ?: "")
+            val response = ApiClient.getInstance().apiService.getCurrentUser(token ?: "")
             if (response.isSuccessful) {
                 response.body()
             } else {

@@ -24,6 +24,7 @@ fun <T> FilterableListView(
     onSearchTextChanged: (String) -> Unit,
     searchPlaceholder: String,
     itemContent: @Composable (T) -> Unit,
+    keySelector: ((T) -> Any)? = null,
 ) {
     Column {
         OutlinedTextField(
@@ -45,8 +46,14 @@ fun <T> FilterableListView(
             singleLine = true,
         )
         LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-            items(items) { item ->
-                itemContent(item)
+            if (keySelector != null) {
+                items(items = items, key = keySelector) { item ->
+                    itemContent(item)
+                }
+            } else {
+                items(items) { item ->
+                    itemContent(item)
+                }
             }
         }
     }

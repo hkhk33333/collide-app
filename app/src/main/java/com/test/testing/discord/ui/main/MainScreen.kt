@@ -20,6 +20,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.test.testing.discord.location.LocationManager
+import com.test.testing.discord.ui.ConnectivityAware
+import com.test.testing.discord.ui.ConnectivityStatus
 import com.test.testing.discord.ui.map.MapScreen
 import com.test.testing.discord.ui.settings.SettingsScreen
 import com.test.testing.discord.viewmodels.MapViewModel
@@ -66,38 +68,43 @@ fun MainScreen() {
 
     PermissionHandler(locationManager)
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val items = listOf(Screen.Map, Screen.Settings)
+    ConnectivityAware(
+        offlineContent = { ConnectivityStatus() },
+        onlineContent = {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar {
+                        val items = listOf(Screen.Map, Screen.Settings)
 
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = navBackStackEntry?.destination?.route
 
-                items.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { screen.icon() },
-                        label = { Text(screen.label) },
-                        selected = currentRoute == screen.route,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                    )
+                        items.forEach { screen ->
+                            NavigationBarItem(
+                                icon = { screen.icon() },
+                                label = { Text(screen.label) },
+                                selected = currentRoute == screen.route,
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                            )
+                        }
+                    }
+                },
+            ) { innerPadding ->
+                NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
+                    composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
+                    composable(Screen.Settings.route) { SettingsScreen(userViewModel, mapUiState.users, locationManager) }
                 }
             }
         },
-    ) { innerPadding ->
-        NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
-            composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
-            composable(Screen.Settings.route) { SettingsScreen(userViewModel, mapUiState.users, locationManager) }
-        }
-    }
+    )
 }
 
 @Composable

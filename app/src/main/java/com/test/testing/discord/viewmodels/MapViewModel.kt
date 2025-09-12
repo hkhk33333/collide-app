@@ -3,6 +3,7 @@ package com.test.testing.discord.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.test.testing.BuildConfig
 import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.data.repository.UserRepositoryImpl
@@ -19,7 +20,7 @@ class MapViewModel(
     application: Application,
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
-    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
+    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.getInstance().apiService)
     private val getUsersUseCase = GetUsersUseCase(userRepositoryImpl)
     private val eventBus = SimpleEventBus()
 
@@ -97,64 +98,101 @@ class MapViewModel(
     }
 
     fun refreshUsers() {
-        val currentState = _uiState.value
-        android.util.Log.d("MapViewModel", "refreshUsers called, current state: $currentState")
+        if (!canRefreshUsers()) return
 
-        if (currentState is MapScreenUiState.Loading ||
-            currentState.isRefreshing
-        ) {
-            android.util.Log.d("MapViewModel", "Refresh prevented - already loading or refreshing")
-            return // Prevent multiple concurrent refreshes
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapViewModel", "Starting refresh with token")
         }
 
-        if (token == null) {
-            android.util.Log.d("MapViewModel", "No token available")
-            _uiState.value =
-                MapScreenUiState.Error(
-                    message = "Authentication required. Please log in again.",
-                    errorType = com.test.testing.discord.models.ErrorType.AUTHENTICATION,
-                    isRefreshing = false,
-                )
-            return
-        }
-
-        android.util.Log.d("MapViewModel", "Starting refresh with token")
         viewModelScope.launch(exceptionHandler) {
-            // Set refreshing state for both Success and Error states
+            setRefreshingState()
+            performUserRefresh()
+        }
+    }
+
+    private fun canRefreshUsers(): Boolean {
+        val currentState = _uiState.value
+
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapViewModel", "refreshUsers called, current state: $currentState")
+        }
+
+        return when {
+            currentState is MapScreenUiState.Loading || currentState.isRefreshing -> {
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("MapViewModel", "Refresh prevented - already loading or refreshing")
+                }
+
+                false
+            }
+            token == null -> {
+                handleMissingToken()
+                false
+            }
+            else -> true
+        }
+    }
+
+    private fun handleMissingToken() {
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapViewModel", "No token available")
+        }
+        _uiState.value =
+            MapScreenUiState.Error(
+                message = "Authentication required. Please log in again.",
+                errorType = com.test.testing.discord.models.ErrorType.AUTHENTICATION,
+                isRefreshing = false,
+            )
+    }
+
+    private fun setRefreshingState() {
+        val currentState = _uiState.value
+        _uiState.value =
             when (currentState) {
-                is MapScreenUiState.Success -> {
-                    _uiState.value = currentState.copy(isRefreshing = true)
-                    android.util.Log.d("MapViewModel", "Set Success state to refreshing")
-                }
-                is MapScreenUiState.Error -> {
-                    _uiState.value = currentState.copy(isRefreshing = true)
-                    android.util.Log.d("MapViewModel", "Set Error state to refreshing")
-                }
-                else -> {
-                    android.util.Log.d("MapViewModel", "Current state is Loading, not changing")
-                    // For Loading state, we don't change it
-                }
+                is MapScreenUiState.Success -> currentState.copy(isRefreshing = true)
+                is MapScreenUiState.Error -> currentState.copy(isRefreshing = true)
+                else -> currentState // Loading state remains unchanged
             }
 
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapViewModel", "Set state to refreshing")
+        }
+    }
+
+    private suspend fun performUserRefresh() {
+        if (BuildConfig.DEBUG) {
             android.util.Log.d("MapViewModel", "Calling getUsersUseCase with forceRefresh=true")
-            getUsersUseCase(token!!, forceRefresh = true).collect { result ->
-                android.util.Log.d("MapViewModel", "Received result: $result")
-                when (result) {
-                    is Result.Success -> {
-                        _uiState.value =
-                            MapScreenUiState.Success(
-                                users = result.data,
-                                isRefreshing = false,
-                            )
+        }
+
+        getUsersUseCase(token!!, forceRefresh = true).collect { result ->
+            handleRefreshResult(result)
+        }
+    }
+
+    private fun handleRefreshResult(result: Result<List<com.test.testing.discord.models.User>>) {
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapViewModel", "Received result: $result")
+        }
+
+        _uiState.value =
+            when (result) {
+                is Result.Success -> {
+                    if (BuildConfig.DEBUG) {
                         android.util.Log.d("MapViewModel", "Set state to Success with ${result.data.size} users")
                     }
-                    is Result.Error -> {
-                        _uiState.value = mapExceptionToUiState(result.exception)
+                    MapScreenUiState.Success(
+                        users = result.data,
+                        isRefreshing = false,
+                    )
+                }
+
+                is Result.Error -> {
+                    if (BuildConfig.DEBUG) {
                         android.util.Log.d("MapViewModel", "Set state to Error: ${result.exception.message}")
                     }
+                    mapExceptionToUiState(result.exception)
                 }
             }
-        }
     }
 
     private fun mapExceptionToUiState(exception: Exception): MapScreenUiState.Error =

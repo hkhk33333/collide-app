@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -162,21 +161,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         channelName: String,
         importance: Int,
     ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel =
-                NotificationChannel(channelId, channelName, importance).apply {
-                    description = "Notifications for $channelName"
-                    enableVibration(true)
+        val channel =
+            NotificationChannel(channelId, channelName, importance).apply {
+                description = "Notifications for $channelName"
+                enableVibration(true)
 
-                    if (channelId == CHANNEL_ID_NEARBY) {
-                        vibrationPattern = longArrayOf(0, 250, 250, 250)
-                        setShowBadge(true)
-                    }
+                if (channelId == CHANNEL_ID_NEARBY) {
+                    vibrationPattern = longArrayOf(0, 250, 250, 250)
+                    setShowBadge(true)
                 }
+            }
 
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
     }
 
     private fun sendRegistrationToServer(token: String) {

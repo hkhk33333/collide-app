@@ -17,7 +17,7 @@ class UserViewModel(
     application: Application,
 ) : AndroidViewModel(application),
     DomainEventSubscriber {
-    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.apiService)
+    private val userRepositoryImpl = UserRepositoryImpl(application, ApiClient.getInstance().apiService)
     private val getCurrentUserUseCase = GetCurrentUserUseCase(userRepositoryImpl)
     private val getGuildsUseCase = GetGuildsUseCase(userRepositoryImpl)
     private val updateUserUseCase = UpdateCurrentUserUseCase(userRepositoryImpl)

@@ -15,6 +15,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,6 +28,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import com.test.testing.BuildConfig
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
@@ -42,14 +44,16 @@ fun MapScreen(
 ) {
     val uiState by mapViewModel.uiState.collectAsState()
     val currentUserLocation by locationManager.locationUpdates.collectAsState()
-    var hasInitiallyCentered by remember { mutableStateOf(false) }
+    var hasInitiallyCentered by rememberSaveable { mutableStateOf(false) }
 
-    // Debug logging for state changes
+    // Debug logging for state changes (only in debug builds)
     LaunchedEffect(uiState) {
-        android.util.Log.d("MapScreen", "UI state changed: $uiState, isRefreshing: ${uiState.isRefreshing}")
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MapScreen", "UI state changed: $uiState, isRefreshing: ${uiState.isRefreshing}")
+        }
     }
 
-    // THE FIX: Add a state to track if the map has finished loading.
+    // Track if the map has finished loading
     var isMapLoaded by remember { mutableStateOf(false) }
 
     val cameraPositionState =
@@ -106,7 +110,9 @@ fun MapScreen(
                     } else {
                         // Show refresh button when not refreshing
                         IconButton(onClick = {
-                            android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
+                            if (BuildConfig.DEBUG) {
+                                android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
+                            }
                             mapViewModel.onEvent(UiEvent.RefreshUsers)
                         }) {
                             Icon(
@@ -123,7 +129,7 @@ fun MapScreen(
                     modifier = Modifier.fillMaxSize(),
                     cameraPositionState = cameraPositionState,
                     properties = MapProperties(isMyLocationEnabled = locationManager.locationPermissionGranted),
-                    // THE FIX: Use the onMapLoaded callback to update our state.
+                    // Use the onMapLoaded callback to update our state
                     onMapLoaded = {
                         isMapLoaded = true
                     },
@@ -158,7 +164,9 @@ fun MapScreen(
                     } else {
                         // Show refresh button when not refreshing
                         IconButton(onClick = {
-                            android.util.Log.d("MapScreen", "Refresh button clicked from Success state")
+                            if (BuildConfig.DEBUG) {
+                                android.util.Log.d("MapScreen", "Refresh button clicked from Success state")
+                            }
                             mapViewModel.onEvent(UiEvent.RefreshUsers)
                         }) {
                             Icon(
@@ -211,7 +219,7 @@ fun UserMarker(
     }
 
     Marker(
-        state = MarkerState(position = position),
+        state = remember(position) { MarkerState(position = position) },
         title = user.duser.username,
         snippet = "Accuracy: ${user.location?.accuracy?.roundToInt()}m",
         icon = bitmapDescriptor, // Use custom avatar or default marker

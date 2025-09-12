@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -32,15 +33,15 @@ fun SettingsScreen(
 ) {
     val uiState by userViewModel.uiState.collectAsState()
 
-    // Local UI state
-    var selectedGuilds by remember { mutableStateOf(setOf<String>()) }
-    var blockedUsers by remember { mutableStateOf(listOf<String>()) }
-    var guildSearchText by remember { mutableStateOf("") }
-    var userSearchText by remember { mutableStateOf("") }
-    var receiveNearbyNotifications by remember { mutableStateOf(true) }
-    var allowNearbyNotifications by remember { mutableStateOf(true) }
-    var nearbyNotificationDistance by remember { mutableStateOf(500.0) }
-    var allowNearbyNotificationDistance by remember { mutableStateOf(500.0) }
+    // Local UI state - preserved during configuration changes
+    var selectedGuilds by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var blockedUsers by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var guildSearchText by rememberSaveable { mutableStateOf("") }
+    var userSearchText by rememberSaveable { mutableStateOf("") }
+    var receiveNearbyNotifications by rememberSaveable { mutableStateOf(true) }
+    var allowNearbyNotifications by rememberSaveable { mutableStateOf(true) }
+    var nearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
+    var allowNearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
 
     // Sync local state with data from the view model
     LaunchedEffect(uiState) {
@@ -191,32 +192,34 @@ fun ServerListView(
         searchText = searchText,
         onSearchTextChanged = onSearchTextChanged,
         searchPlaceholder = "Search servers...",
-    ) { guild ->
-        ListItem(
-            headlineContent = { Text(guild.name) },
-            leadingContent = {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    AsyncImage(
-                        model = guild.iconUrl,
-                        contentDescription = guild.name,
-                        modifier = Modifier.fillMaxSize(),
+        keySelector = { guild: Guild -> guild.id },
+        itemContent = { guild ->
+            ListItem(
+                headlineContent = { Text(guild.name) },
+                leadingContent = {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        AsyncImage(
+                            model = guild.iconUrl,
+                            contentDescription = guild.name,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                },
+                trailingContent = {
+                    Switch(
+                        checked = selectedGuilds.contains(guild.id),
+                        onCheckedChange = { onToggle(guild.id, it) },
                     )
-                }
-            },
-            trailingContent = {
-                Switch(
-                    checked = selectedGuilds.contains(guild.id),
-                    onCheckedChange = { onToggle(guild.id, it) },
-                )
-            },
-        )
-    }
+                },
+            )
+        },
+    )
 }
 
 @Composable
@@ -235,41 +238,48 @@ fun UserListView(
         searchText = searchText,
         onSearchTextChanged = onSearchTextChanged,
         searchPlaceholder = "Search users...",
-    ) { user ->
-        ListItem(
-            headlineContent = { Text(user.duser.username) },
-            supportingContent = { if (user.id == currentUser?.id) Text("You") },
-            leadingContent = {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    AsyncImage(
-                        model = user.duser.avatarUrl,
-                        contentDescription = user.duser.username,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            },
-            trailingContent = {
-                if (user.id != currentUser?.id) {
-                    val isBlocked = blockedUsers.contains(user.id)
-                    Button(
-                        onClick = { onToggleBlock(user.id) },
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = if (isBlocked) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-                            ),
+        keySelector = { user: User -> user.id },
+        itemContent = { user ->
+            ListItem(
+                headlineContent = { Text(user.duser.username) },
+                supportingContent = { if (user.id == currentUser?.id) Text("You") },
+                leadingContent = {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        Text(if (isBlocked) "Unblock" else "Block")
+                        AsyncImage(
+                            model = user.duser.avatarUrl,
+                            contentDescription = user.duser.username,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
-                }
-            },
-        )
-    }
+                },
+                trailingContent = {
+                    if (user.id != currentUser?.id) {
+                        val isBlocked = blockedUsers.contains(user.id)
+                        Button(
+                            onClick = { onToggleBlock(user.id) },
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor =
+                                        if (isBlocked) {
+                                            MaterialTheme.colorScheme.secondary
+                                        } else {
+                                            MaterialTheme.colorScheme.error
+                                        },
+                                ),
+                        ) {
+                            Text(if (isBlocked) "Unblock" else "Block")
+                        }
+                    }
+                },
+            )
+        },
+    )
 }
 
 @Composable

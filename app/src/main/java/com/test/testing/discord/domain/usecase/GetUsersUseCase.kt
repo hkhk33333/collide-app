@@ -7,9 +7,25 @@ import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
+/**
+ * Use case for retrieving users from the Discord API
+ *
+ * This use case handles:
+ * - Input validation (token validation)
+ * - Cache management (force refresh capability)
+ * - Error handling and propagation
+ * - Domain layer business logic
+ */
 class GetUsersUseCase(
     private val repository: UserRepository,
 ) {
+    /**
+     * Retrieves users from the Discord API
+     *
+     * @param token Authentication token for API access
+     * @param forceRefresh If true, bypasses cache and fetches fresh data
+     * @return Flow of Result containing list of users or error
+     */
     operator fun invoke(
         token: String,
         forceRefresh: Boolean = false,

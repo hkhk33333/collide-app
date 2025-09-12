@@ -18,7 +18,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 
 class AuthManager private constructor(
-    context: Context,
+    private val context: Context,
 ) {
     // Use the new secure storage
     private val secureTokenStorage = SecureTokenStorage(context)
@@ -86,7 +86,7 @@ class AuthManager private constructor(
                         codeVerifier = codeVerifier!!,
                         redirectUri = com.test.testing.discord.config.AppConfig.CALLBACK_URL,
                     )
-                val response = ApiClient.apiService.exchangeCodeForToken(request)
+                val response = ApiClient.getInstance().apiService.exchangeCodeForToken(request)
                 if (response.isSuccessful && response.body() != null) {
                     val tokenResponse = response.body()!!
                     withContext(Dispatchers.Main) {
@@ -117,7 +117,7 @@ class AuthManager private constructor(
                 val tokenVal = _token.value
                 if (tokenVal != null) {
                     val currentTokenHeader = "Bearer $tokenVal"
-                    ApiClient.apiService.revokeToken(currentTokenHeader)
+                    ApiClient.getInstance().apiService.revokeToken(currentTokenHeader)
                 }
             } catch (e: Exception) {
                 Log.e("AuthManager", "Failed to revoke token", e)

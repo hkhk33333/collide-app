@@ -14,10 +14,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.test.testing.R
 
-// CHANGE IS HERE: The lambda now provides a Context
 @Composable
 fun LoginScreen(onLoginClick: (Context) -> Unit) {
-    // CHANGE IS HERE: Get the context from the composition
     val context = LocalContext.current
 
     Column(
@@ -35,7 +33,6 @@ fun LoginScreen(onLoginClick: (Context) -> Unit) {
         Text("Discord Location Sharing".replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.headlineLarge)
         Text("Connect with your community", style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(32.dp))
-        // CHANGE IS HERE: Pass the context in the onClick lambda
         Button(onClick = { onLoginClick(context) }) {
             Text("Continue with Discord")
         }

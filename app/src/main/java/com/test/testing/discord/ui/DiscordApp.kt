@@ -12,35 +12,43 @@ import com.test.testing.discord.viewmodels.AuthViewModel
 
 @Composable
 fun DiscordApp() {
-    val authViewModel: AuthViewModel = viewModel()
-    val uiState by authViewModel.uiState.collectAsState()
+    ErrorBoundary {
+        NetworkAware {
+            val authViewModel: AuthViewModel = viewModel()
+            val uiState by authViewModel.uiState.collectAsState()
 
-    when (uiState) {
-        is AuthScreenUiState.Authenticated -> {
-            MainScreen()
-        }
-        is AuthScreenUiState.Unauthenticated -> {
-            LoginScreen(onLoginClick = { activityContext ->
-                authViewModel.onEvent(UiEvent.Login)
-                // The AuthManager login will be triggered through the ViewModel
-                authViewModel.login()
-            })
-        }
-        is AuthScreenUiState.Loading -> {
-            // Show loading state
-            LoadingScreen()
-        }
-        is AuthScreenUiState.Error -> {
-            val errorState = uiState as AuthScreenUiState.Error
-            ErrorScreen(
-                message = errorState.message,
-                canRetry = errorState.canRetry,
-                onRetry = { authViewModel.clearError() },
-            )
-        }
-        is AuthScreenUiState.Initial -> {
-            // Initial loading state
-            LoadingScreen()
+            when (uiState) {
+                is AuthScreenUiState.Authenticated -> {
+                    MainScreen()
+                }
+
+                is AuthScreenUiState.Unauthenticated -> {
+                    LoginScreen(onLoginClick = { activityContext ->
+                        authViewModel.onEvent(UiEvent.Login)
+                        // The AuthManager login will be triggered through the ViewModel
+                        authViewModel.login()
+                    })
+                }
+
+                is AuthScreenUiState.Loading -> {
+                    // Show loading state
+                    LoadingScreen()
+                }
+
+                is AuthScreenUiState.Error -> {
+                    val errorState = uiState as AuthScreenUiState.Error
+                    ErrorScreen(
+                        message = errorState.message,
+                        canRetry = errorState.canRetry,
+                        onRetry = { authViewModel.clearError() },
+                    )
+                }
+
+                is AuthScreenUiState.Initial -> {
+                    // Initial loading state
+                    LoadingScreen()
+                }
+            }
         }
     }
 }
