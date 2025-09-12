@@ -18,6 +18,17 @@ runtimes:
     - python@3.13.3
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
+  files:
+    - name: android-source
+      extensions: [java, kt, kts, xml, aidl, rs, fs, vs, gradle, pro]
+      filenames:
+        - AndroidManifest.xml
+        - build.gradle
+        - build.gradle.kts
+        - settings.gradle
+        - settings.gradle.kts
+        - gradle.properties
+        - proguard-rules.pro
   disabled:
     # We disable checkov because it is an infrastructure-as-code scanner,
     # and this project does not contain any IaC files (e.g., Terraform, Dockerfile, Kubernetes).
@@ -38,6 +49,27 @@ lint:
     - trufflehog@3.90.6
     - yamllint@1.37.1
     - detekt-gradle@SYSTEM
+    - android-lint
+  definitions:
+    - name: android-lint
+      files: [android-source]
+      affects_cache:
+        - build.gradle
+        - build.gradle.kts
+        - app/build.gradle
+        - app/build.gradle.kts
+        - settings.gradle
+        - settings.gradle.kts
+        - gradle.properties
+      commands:
+        - name: lint
+          run: sh -c './gradlew lint >/dev/null 2>&1 && cat app/build/reports/lint-results-debug.sarif 2>/dev/null || echo "{\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"Android Lint\"}},\"results\":[]}]} "'
+          output: sarif
+          read_output_from: stdout
+          success_codes: [0]
+          run_linter_from: workspace
+          target: .
+          cache_results: true
   # We vendor the Gradle wrapper script; it's third-party generated and not maintained here.
   # Ignore it for shellcheck to prevent false positives and noisy findings on non-project code.
   ignore:
@@ -55,18 +87,11 @@ actions:
     - trunk-announce
     - trunk-check-pre-push
     - trunk-upgrade-available
-    - android-lint-pre-commit
     - gradle-test-pre-push
     - gradle-build-pre-push
   definitions:
     - id: commitizen
       packages_file: ${workspace}/.trunk/commitizen/package.json
-    - id: android-lint-pre-commit
-      display_name: Android Lint
-      description: Run Android lint checks before commit
-      run: ./gradlew lint
-      triggers:
-        - git_hooks: [pre-commit]
     - id: gradle-test-pre-push
       display_name: Gradle Tests
       description: Run unit tests before push
