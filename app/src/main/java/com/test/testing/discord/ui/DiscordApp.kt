@@ -9,17 +9,19 @@ import com.test.testing.discord.ui.login.AuthScreenUiState
 import com.test.testing.discord.ui.login.LoginScreen
 import com.test.testing.discord.ui.main.MainScreen
 import com.test.testing.discord.viewmodels.AuthViewModel
+import com.test.testing.discord.viewmodels.MainScreenViewModel
 
 @Composable
 fun DiscordApp() {
     ErrorBoundary {
         NetworkAware {
             val authViewModel: AuthViewModel = viewModel()
+            val mainScreenViewModel: MainScreenViewModel = viewModel()
             val uiState by authViewModel.uiState.collectAsState()
 
             when (uiState) {
                 is AuthScreenUiState.Authenticated -> {
-                    MainScreen()
+                    MainScreen(locationManager = mainScreenViewModel.locationManager)
                 }
 
                 is AuthScreenUiState.Unauthenticated -> {

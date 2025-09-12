@@ -1,6 +1,7 @@
 package com.test.testing.di
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.test.testing.discord.location.LocationManager
 import dagger.Module
 import dagger.Provides
@@ -16,5 +17,6 @@ object LocationModule {
     @Singleton
     fun provideLocationManager(
         @ApplicationContext context: Context,
-    ): LocationManager = LocationManager(context)
+        sharedPreferences: SharedPreferences,
+    ): LocationManager = LocationManager(context, sharedPreferences)
 }

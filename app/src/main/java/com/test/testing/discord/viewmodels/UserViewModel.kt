@@ -23,10 +23,9 @@ class UserViewModel
         private val updateUserUseCase: UpdateCurrentUserUseCase,
         private val deleteUserDataUseCase: DeleteUserDataUseCase,
         private val authManager: AuthManager,
+        private val eventBus: DomainEventBus,
     ) : AndroidViewModel(application),
         DomainEventSubscriber {
-        private val eventBus = SimpleEventBus()
-
         private val _uiState = MutableStateFlow<UserScreenUiState>(UserScreenUiState.Loading)
         val uiState: StateFlow<UserScreenUiState> = _uiState.asStateFlow()
 

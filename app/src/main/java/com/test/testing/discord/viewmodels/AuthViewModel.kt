@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.models.DomainEvent
+import com.test.testing.discord.models.DomainEventBus
 import com.test.testing.discord.models.DomainEventSubscriber
-import com.test.testing.discord.models.SimpleEventBus
 import com.test.testing.discord.ui.login.AuthScreenUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,10 +32,9 @@ class AuthViewModel
     constructor(
         application: Application,
         private val authManager: AuthManager,
+        private val eventBus: DomainEventBus,
     ) : AndroidViewModel(application),
         DomainEventSubscriber {
-        private val eventBus = SimpleEventBus()
-
         private val _uiState =
             MutableStateFlow<AuthScreenUiState>(
                 if (authManager.isAuthenticated.value) {

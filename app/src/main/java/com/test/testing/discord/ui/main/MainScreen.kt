@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,10 +37,8 @@ sealed class Screen(
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(locationManager: LocationManager) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-    val locationManager = remember { LocationManager.getInstance(context) }
 
     // These ViewModels are now scoped to the MainScreen's lifecycle
     val mapViewModel: MapViewModel = viewModel()
@@ -109,8 +106,6 @@ fun MainScreen() {
 
 @Composable
 fun PermissionHandler(locationManager: LocationManager) {
-    val context = LocalContext.current
-
     val permissionLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions(),

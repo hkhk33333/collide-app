@@ -148,6 +148,10 @@ dependencies {
     ksp(libs.hilt.android.compiler)
 
     testImplementation(libs.junit)
+    testImplementation(libs.hilt.android.testing)
+    testImplementation(libs.mockwebserver)
+    testImplementation(libs.mockito.core)
+    kspTest(libs.hilt.android.compiler)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -23,10 +23,9 @@ class MapViewModel
         application: Application,
         private val getUsersUseCase: GetUsersUseCase,
         private val authManager: AuthManager,
+        private val eventBus: DomainEventBus,
     ) : AndroidViewModel(application),
         DomainEventSubscriber {
-        private val eventBus = SimpleEventBus()
-
         private val _uiState = MutableStateFlow<MapScreenUiState>(MapScreenUiState.Loading)
         val uiState: StateFlow<MapScreenUiState> = _uiState.asStateFlow()
 

@@ -24,8 +24,8 @@ class AuthManager
     @Inject
     constructor(
         private val secureTokenStorage: SecureTokenStorage,
-        private val apiService: ApiService,
     ) {
+        private var apiService: ApiService? = null
         private var codeVerifier: String? = null
 
         // StateFlows to hold in-memory state
@@ -84,20 +84,24 @@ class AuthManager
 
             CoroutineScope(Dispatchers.IO).launch {
                 try {
+                    if (apiService == null) {
+                        Log.e("AuthManager", "ApiService is null. Cannot exchange token.")
+                        return@launch
+                    }
                     val request =
                         TokenRequest(
                             code = code,
                             codeVerifier = codeVerifier!!,
                             redirectUri = com.test.testing.discord.config.AppConfig.CALLBACK_URL,
                         )
-                    val response = apiService.exchangeCodeForToken(request)
-                    if (response.isSuccessful && response.body() != null) {
+                    val response = apiService?.exchangeCodeForToken(request)
+                    if (response?.isSuccessful == true && response.body() != null) {
                         val tokenResponse = response.body()!!
                         withContext(Dispatchers.Main) {
                             saveToken(tokenResponse)
                         }
                     } else {
-                        Log.e("AuthManager", "Token exchange failed: ${response.errorBody()?.string()}")
+                        Log.e("AuthManager", "Token exchange failed: ${response?.errorBody()?.string()}")
                     }
                 } catch (e: Exception) {
                     Log.e("AuthManager", "Exception during token exchange", e)
@@ -115,13 +119,17 @@ class AuthManager
             _isAuthenticated.value = true
         }
 
+        fun setApiService(apiService: ApiService) {
+            this.apiService = apiService
+        }
+
         fun logout(onComplete: () -> Unit) {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val tokenVal = _token.value
-                    if (tokenVal != null) {
+                    if (tokenVal != null && apiService != null) {
                         val currentTokenHeader = "Bearer $tokenVal"
-                        apiService.revokeToken(currentTokenHeader)
+                        apiService?.revokeToken(currentTokenHeader)
                     }
                 } catch (e: Exception) {
                     Log.e("AuthManager", "Failed to revoke token", e)

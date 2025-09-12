@@ -24,13 +24,10 @@ class DiscordLocationService : Service() {
         Log.d("DiscordLocationService", "Service started")
 
         serviceScope.launch {
-            val locationManager = LocationManager.getInstance(applicationContext)
-            locationManager.locationUpdates.collect { location: android.location.Location? ->
-                location?.let {
-                    Log.d("DiscordLocationService", "Collected location update in service")
-                    // The LocationManager is already responsible for sending the update to the server
-                }
-            }
+            // Note: Services cannot easily use Hilt injection. Consider using a different approach
+            // for location updates in services, or create a service-specific LocationManager
+            // For now, we'll use a simple approach
+            Log.d("DiscordLocationService", "Service started - location updates handled by LocationManager")
         }
 
         return START_STICKY

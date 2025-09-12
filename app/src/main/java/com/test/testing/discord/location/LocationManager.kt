@@ -18,126 +18,122 @@ import androidx.core.content.edit
 import com.google.android.gms.location.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.lang.ref.WeakReference
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class LocationManager(
-    private val context: Context,
-) {
-    companion object {
-        @Volatile
-        private var INSTANCE: WeakReference<LocationManager>? = null
+@Singleton
+class LocationManager
+    @Inject
+    constructor(
+        private val context: Context,
+        private val sharedPreferences: SharedPreferences,
+    ) {
+        private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+        private val prefs: SharedPreferences = sharedPreferences
+        private var isUpdatingLocation = false
 
-        fun getInstance(context: Context): LocationManager {
-            val existingInstance = INSTANCE?.get()
-            return existingInstance ?: synchronized(this) {
-                val newInstance = LocationManager(context.applicationContext)
-                INSTANCE = WeakReference(newInstance)
-                newInstance
-            }
+        private val _locationUpdates = MutableStateFlow<android.location.Location?>(null)
+        val locationUpdates = _locationUpdates.asStateFlow()
+
+        // --- Persisted Settings ---
+        var backgroundUpdatesEnabled by mutableStateOf(prefs.getBoolean("backgroundUpdatesEnabled", true))
+            private set
+        var updateInterval by mutableLongStateOf(prefs.getLong("updateInterval", 60000L)) // Default 1 minute
+            private set
+        var minimumMovementThreshold by mutableFloatStateOf(prefs.getFloat("minimumMovementThreshold", 1000f)) // Default 1km
+            private set
+        var desiredAccuracy by mutableFloatStateOf(prefs.getFloat("desiredAccuracy", 0f)) // Default Full Accuracy
+            private set
+
+        fun updateBackgroundUpdates(enabled: Boolean) {
+            backgroundUpdatesEnabled = enabled
+            prefs.edit { putBoolean("backgroundUpdatesEnabled", enabled) }
+            handleSettingsChange()
         }
-    }
 
-    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
-    private val prefs: SharedPreferences = context.getSharedPreferences("location_settings", Context.MODE_PRIVATE)
-    private var isUpdatingLocation = false
+        fun updateInterval(interval: Long) {
+            updateInterval = interval
+            prefs.edit { putLong("updateInterval", interval) }
+            handleSettingsChange()
+        }
 
-    private val _locationUpdates = MutableStateFlow<android.location.Location?>(null)
-    val locationUpdates = _locationUpdates.asStateFlow()
+        fun updateMinimumMovement(threshold: Float) {
+            minimumMovementThreshold = threshold
+            prefs.edit { putFloat("minimumMovementThreshold", threshold) }
+            handleSettingsChange()
+        }
 
-    // --- Persisted Settings ---
-    var backgroundUpdatesEnabled by mutableStateOf(prefs.getBoolean("backgroundUpdatesEnabled", true))
-        private set
-    var updateInterval by mutableLongStateOf(prefs.getLong("updateInterval", 60000L)) // Default 1 minute
-        private set
-    var minimumMovementThreshold by mutableFloatStateOf(prefs.getFloat("minimumMovementThreshold", 1000f)) // Default 1km
-        private set
-    var desiredAccuracy by mutableFloatStateOf(prefs.getFloat("desiredAccuracy", 0f)) // Default Full Accuracy
-        private set
+        fun updateDesiredAccuracy(accuracy: Float) {
+            desiredAccuracy = accuracy
+            prefs.edit { putFloat("desiredAccuracy", accuracy) }
+            // No need to restart location updates for this, it's used when sending data
+        }
+        // --- End Persisted Settings ---
 
-    fun updateBackgroundUpdates(enabled: Boolean) {
-        backgroundUpdatesEnabled = enabled
-        prefs.edit { putBoolean("backgroundUpdatesEnabled", enabled) }
-        handleSettingsChange()
-    }
-
-    fun updateInterval(interval: Long) {
-        updateInterval = interval
-        prefs.edit { putLong("updateInterval", interval) }
-        handleSettingsChange()
-    }
-
-    fun updateMinimumMovement(threshold: Float) {
-        minimumMovementThreshold = threshold
-        prefs.edit { putFloat("minimumMovementThreshold", threshold) }
-        handleSettingsChange()
-    }
-
-    fun updateDesiredAccuracy(accuracy: Float) {
-        desiredAccuracy = accuracy
-        prefs.edit { putFloat("desiredAccuracy", accuracy) }
-        // No need to restart location updates for this, it's used when sending data
-    }
-    // --- End Persisted Settings ---
-
-    val locationPermissionGranted: Boolean
-        get() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
-    val backgroundPermissionGranted: Boolean
-        get() =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+        val locationPermissionGranted: Boolean
+            get() =
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
                     PackageManager.PERMISSION_GRANTED
-            } else {
-                true
-            }
 
-    private val locationCallback =
-        object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                locationResult.lastLocation?.let { location ->
-                    _locationUpdates.value = location
+        val backgroundPermissionGranted: Boolean
+            get() =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+                        PackageManager.PERMISSION_GRANTED
+                } else {
+                    true
+                }
+
+        private val locationCallback =
+            object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    locationResult.lastLocation?.let { location ->
+                        _locationUpdates.value = location
+                    }
                 }
             }
-        }
 
-    private fun handleSettingsChange() {
-        if (isUpdatingLocation) {
-            stopLocationUpdates()
-            startLocationUpdates()
-        }
-    }
-
-    fun startLocationUpdates() {
-        if (!locationPermissionGranted || isUpdatingLocation) return
-
-        try {
-            val locationRequest =
-                LocationRequest
-                    .Builder(Priority.PRIORITY_HIGH_ACCURACY, updateInterval)
-                    .setMinUpdateIntervalMillis(updateInterval / 2)
-                    .setMinUpdateDistanceMeters(minimumMovementThreshold)
-                    .build()
-
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-            isUpdatingLocation = true
-            Log.d("LocationManager", "Started location updates with interval: $updateInterval ms, threshold: $minimumMovementThreshold m")
-
-            if (backgroundUpdatesEnabled && backgroundPermissionGranted) {
-                val serviceIntent = Intent(context, DiscordLocationService::class.java)
-                ContextCompat.startForegroundService(context, serviceIntent)
+        private fun handleSettingsChange() {
+            if (isUpdatingLocation) {
+                stopLocationUpdates()
+                startLocationUpdates()
             }
-        } catch (e: SecurityException) {
-            Log.e("LocationManager", "SecurityException: Cannot start location updates", e)
+        }
+
+        fun startLocationUpdates() {
+            if (!locationPermissionGranted || isUpdatingLocation) return
+
+            try {
+                val locationRequest =
+                    LocationRequest
+                        .Builder(Priority.PRIORITY_HIGH_ACCURACY, updateInterval)
+                        .setMinUpdateIntervalMillis(updateInterval / 2)
+                        .setMinUpdateDistanceMeters(minimumMovementThreshold)
+                        .build()
+
+                fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+                isUpdatingLocation = true
+                Log.d(
+                    "LocationManager",
+                    "Started location updates with interval: $updateInterval ms, threshold: $minimumMovementThreshold m",
+                )
+
+                if (backgroundUpdatesEnabled && backgroundPermissionGranted) {
+                    val serviceIntent = Intent(context, DiscordLocationService::class.java)
+                    ContextCompat.startForegroundService(context, serviceIntent)
+                }
+            } catch (e: SecurityException) {
+                Log.e("LocationManager", "SecurityException: Cannot start location updates", e)
+            }
+        }
+
+        fun stopLocationUpdates() {
+            if (!isUpdatingLocation) return
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+            isUpdatingLocation = false
+            Log.d("LocationManager", "Stopped location updates")
+
+            val serviceIntent = Intent(context, DiscordLocationService::class.java)
+            context.stopService(serviceIntent)
         }
     }
-
-    fun stopLocationUpdates() {
-        if (!isUpdatingLocation) return
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-        isUpdatingLocation = false
-        Log.d("LocationManager", "Stopped location updates")
-
-        val serviceIntent = Intent(context, DiscordLocationService::class.java)
-        context.stopService(serviceIntent)
-    }
-}

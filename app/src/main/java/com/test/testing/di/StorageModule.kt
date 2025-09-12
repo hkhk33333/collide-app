@@ -1,6 +1,7 @@
 package com.test.testing.di
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.test.testing.discord.auth.SecureTokenStorage
 import com.test.testing.discord.cache.CacheManager
 import com.test.testing.discord.network.NetworkResilience
@@ -31,4 +32,10 @@ object StorageModule {
     fun provideNetworkResilience(
         @ApplicationContext context: Context,
     ): NetworkResilience = NetworkResilience(context)
+
+    @Provides
+    @Singleton
+    fun provideSharedPreferences(
+        @ApplicationContext context: Context,
+    ): SharedPreferences = context.getSharedPreferences("app_preferences", Context.MODE_PRIVATE)
 }
