@@ -21,6 +21,7 @@ import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.User
+import com.test.testing.discord.ui.UiEvent
 import com.test.testing.discord.viewmodels.UserViewModel
 
 @Composable
@@ -29,8 +30,7 @@ fun SettingsScreen(
     users: List<User>,
     locationManager: LocationManager,
 ) {
-    val currentUser by userViewModel.currentUser.collectAsState()
-    val guilds by userViewModel.guilds.collectAsState()
+    val uiState by userViewModel.uiState.collectAsState()
 
     // Local UI state
     var selectedGuilds by remember { mutableStateOf(setOf<String>()) }
@@ -43,7 +43,8 @@ fun SettingsScreen(
     var allowNearbyNotificationDistance by remember { mutableStateOf(500.0) }
 
     // Sync local state with data from the view model
-    LaunchedEffect(currentUser) {
+    LaunchedEffect(uiState) {
+        val currentUser = uiState.currentUser
         currentUser?.let { user ->
             selectedGuilds = user.privacy.enabledGuilds.toSet()
             blockedUsers = user.privacy.blockedUsers
@@ -55,6 +56,7 @@ fun SettingsScreen(
     }
 
     val saveSettings = {
+        val currentUser = uiState.currentUser
         currentUser?.let { user: com.test.testing.discord.models.User ->
             val updatedUser =
                 user.copy(
@@ -68,7 +70,7 @@ fun SettingsScreen(
                     nearbyNotificationDistance = nearbyNotificationDistance,
                     allowNearbyNotificationDistance = allowNearbyNotificationDistance,
                 )
-            userViewModel.updateCurrentUser(updatedUser) {}
+            userViewModel.onEvent(UiEvent.UpdateUser(updatedUser))
         }
     }
 
@@ -82,7 +84,7 @@ fun SettingsScreen(
         item {
             SectionHeader("Discord Servers")
             ServerListView(
-                guilds = guilds,
+                guilds = uiState.guilds,
                 selectedGuilds = selectedGuilds,
                 searchText = guildSearchText,
                 onSearchTextChanged = { guildSearchText = it },
@@ -103,7 +105,7 @@ fun SettingsScreen(
             SectionHeader("Users")
             UserListView(
                 users = users,
-                currentUser = currentUser,
+                currentUser = uiState.currentUser,
                 blockedUsers = blockedUsers,
                 searchText = userSearchText,
                 onSearchTextChanged = { userSearchText = it },
@@ -392,11 +394,7 @@ fun AccountActionsView(userViewModel: UserViewModel) {
         trailingContent = { Icon(Icons.Default.Delete, contentDescription = "Delete Data", tint = MaterialTheme.colorScheme.error) },
         modifier =
             Modifier.clickable {
-                userViewModel.deleteUserData {
-                    authManager.logout {
-                        // The change in auth state will trigger recomposition
-                    }
-                }
+                userViewModel.onEvent(UiEvent.DeleteUserData)
             },
     )
 }

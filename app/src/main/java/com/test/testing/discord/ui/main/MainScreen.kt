@@ -45,11 +45,12 @@ fun MainScreen() {
     val mapViewModel: MapViewModel = viewModel()
     val userViewModel: UserViewModel = viewModel()
 
-    val currentUser by userViewModel.currentUser.collectAsState()
-    val users by mapViewModel.users.collectAsState()
+    val userUiState by userViewModel.uiState.collectAsState()
+    val mapUiState by mapViewModel.uiState.collectAsState()
 
     // This effect coordinates between UserViewModel and MapViewModel
-    LaunchedEffect(currentUser) {
+    LaunchedEffect(userUiState) {
+        val currentUser = userUiState.currentUser
         currentUser?.let {
             mapViewModel.initializeForUser()
         }
@@ -94,7 +95,7 @@ fun MainScreen() {
     ) { innerPadding ->
         NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
             composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
-            composable(Screen.Settings.route) { SettingsScreen(userViewModel, users, locationManager) }
+            composable(Screen.Settings.route) { SettingsScreen(userViewModel, mapUiState.users, locationManager) }
         }
     }
 }

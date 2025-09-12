@@ -31,6 +31,7 @@ import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
 import com.test.testing.discord.ui.CoilImageLoader
+import com.test.testing.discord.ui.UiEvent
 import com.test.testing.discord.viewmodels.MapViewModel
 import kotlin.math.roundToInt
 
@@ -106,7 +107,7 @@ fun MapScreen(
                         // Show refresh button when not refreshing
                         IconButton(onClick = {
                             android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
-                            mapViewModel.refreshUsers()
+                            mapViewModel.onEvent(UiEvent.RefreshUsers)
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -158,7 +159,7 @@ fun MapScreen(
                         // Show refresh button when not refreshing
                         IconButton(onClick = {
                             android.util.Log.d("MapScreen", "Refresh button clicked from Success state")
-                            mapViewModel.refreshUsers()
+                            mapViewModel.onEvent(UiEvent.RefreshUsers)
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
