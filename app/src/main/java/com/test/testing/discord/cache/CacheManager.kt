@@ -14,7 +14,7 @@ import java.io.File
 /**
  * Professional cache manager for API responses with automatic expiration and memory management
  */
-class CacheManager private constructor(
+class CacheManager(
     private val context: Context,
 ) {
     private val gson = Gson()
@@ -23,16 +23,6 @@ class CacheManager private constructor(
 
     init {
         cacheDir.mkdirs()
-    }
-
-    companion object {
-        @Volatile
-        private var INSTANCE: CacheManager? = null
-
-        fun getInstance(context: Context): CacheManager =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: CacheManager(context.applicationContext).also { INSTANCE = it }
-            }
     }
 
     /**

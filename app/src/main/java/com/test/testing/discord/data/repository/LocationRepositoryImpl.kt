@@ -1,9 +1,7 @@
 package com.test.testing.discord.data.repository
 
-import android.content.Context
 import android.location.Location
 import android.util.Log
-import com.test.testing.discord.api.ApiClient
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.domain.repository.LocationRepository
 import com.test.testing.discord.location.LocationManager
@@ -16,13 +14,14 @@ import kotlinx.coroutines.flow.map
  * Implementation of LocationRepository using LocationManager and network services
  */
 class LocationRepositoryImpl(
-    private val context: Context,
-    private val locationManager: LocationManager = LocationManager.getInstance(context),
-    private val networkResilience: NetworkResilience = NetworkResilience.getInstance(context),
+    private val apiService: com.test.testing.discord.api.ApiService,
+    private val locationManager: LocationManager,
+    private val networkResilience: NetworkResilience,
+    private val authManager: AuthManager,
 ) : LocationRepository {
     private val token: String?
         get() =
-            AuthManager.instance.token.value
+            authManager.token.value
                 ?.let { "Bearer $it" }
 
     override fun getCurrentLocation(): Flow<Result<Location?>> =
@@ -75,7 +74,7 @@ class LocationRepositoryImpl(
                     val currentUser = getCurrentUser()
                     if (currentUser != null) {
                         val updatedUser = currentUser.copy(location = locationData)
-                        val response = ApiClient.getInstance().apiService.updateCurrentUser(token!!, updatedUser)
+                        val response = apiService.updateCurrentUser(token!!, updatedUser)
 
                         if (response.isSuccessful) {
                             Result.success(Unit)
@@ -136,7 +135,7 @@ class LocationRepositoryImpl(
      */
     private suspend fun getCurrentUser(): User? =
         try {
-            val response = ApiClient.getInstance().apiService.getCurrentUser(token ?: "")
+            val response = apiService.getCurrentUser(token ?: "")
             if (response.isSuccessful) {
                 response.body()
             } else {

@@ -17,19 +17,9 @@ import java.net.UnknownHostException
 /**
  * Professional network resilience layer for handling network issues gracefully
  */
-class NetworkResilience private constructor(
+class NetworkResilience(
     private val context: Context,
 ) {
-    companion object {
-        @Volatile
-        private var INSTANCE: NetworkResilience? = null
-
-        fun getInstance(context: Context): NetworkResilience =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: NetworkResilience(context.applicationContext).also { INSTANCE = it }
-            }
-    }
-
     /**
      * Check if device has internet connectivity
      */

@@ -20,9 +20,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.lang.ref.WeakReference
 
-class LocationManager private constructor(
+class LocationManager(
     private val context: Context,
 ) {
+    companion object {
+        @Volatile
+        private var INSTANCE: WeakReference<LocationManager>? = null
+
+        fun getInstance(context: Context): LocationManager {
+            val existingInstance = INSTANCE?.get()
+            return existingInstance ?: synchronized(this) {
+                val newInstance = LocationManager(context.applicationContext)
+                INSTANCE = WeakReference(newInstance)
+                newInstance
+            }
+        }
+    }
+
     private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
     private val prefs: SharedPreferences = context.getSharedPreferences("location_settings", Context.MODE_PRIVATE)
     private var isUpdatingLocation = false
@@ -125,18 +139,5 @@ class LocationManager private constructor(
 
         val serviceIntent = Intent(context, DiscordLocationService::class.java)
         context.stopService(serviceIntent)
-    }
-
-    companion object {
-        @Volatile
-        private var INSTANCE: LocationManager? = null
-
-        fun getInstance(context: Context): LocationManager =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: LocationManager(context.applicationContext).also { INSTANCE = it }
-            }
-
-        val instance: LocationManager
-            get() = INSTANCE ?: error("LocationManager not initialized")
     }
 }

@@ -14,11 +14,9 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.User
@@ -386,15 +384,14 @@ fun NotificationSettingsView(
 
 @Composable
 fun AccountActionsView(userViewModel: UserViewModel) {
-    val context = LocalContext.current
-    val authManager = AuthManager.getInstance(context)
+    // AuthManager is now injected into UserViewModel, no need to manually instantiate
 
     ListItem(
         headlineContent = { Text("Logout", color = MaterialTheme.colorScheme.error) },
         trailingContent = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = MaterialTheme.colorScheme.error) },
         modifier =
             Modifier.clickable {
-                authManager.logout {
+                userViewModel.logout {
                     // The change in auth state will trigger recomposition and data clearing via DomainEvent
                 }
             },

@@ -24,7 +24,8 @@ class DiscordLocationService : Service() {
         Log.d("DiscordLocationService", "Service started")
 
         serviceScope.launch {
-            LocationManager.instance.locationUpdates.collect { location ->
+            val locationManager = LocationManager.getInstance(applicationContext)
+            locationManager.locationUpdates.collect { location: android.location.Location? ->
                 location?.let {
                     Log.d("DiscordLocationService", "Collected location update in service")
                     // The LocationManager is already responsible for sending the update to the server

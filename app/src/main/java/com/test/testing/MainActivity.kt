@@ -68,8 +68,14 @@ import com.test.testing.friends.AddFriendScreen
 import com.test.testing.friends.FriendListScreen
 import com.test.testing.friends.FriendRepository
 import com.test.testing.ui.theme.TestingTheme
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var authManager: AuthManager
+
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var currentLocation by mutableStateOf<Location?>(null)
@@ -118,9 +124,7 @@ class MainActivity : ComponentActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         if (BuildConfig.USE_DISCORD_SYSTEM) {
-            // Initialize Discord singletons
-            // ApiClient is now initialized on first access via getInstance()
-            AuthManager.getInstance(this)
+            // AuthManager is now injected by Hilt
             // ADDED: Handle intent if the app is launched from the redirect
             handleAuthRedirect(intent)
         }
@@ -156,7 +160,7 @@ class MainActivity : ComponentActivity() {
             val code = uri.getQueryParameter("code")
             if (code != null) {
                 Log.d("MainActivity", "Received auth code from redirect: $code")
-                AuthManager.instance.handleAuthCallback(code)
+                authManager.handleAuthCallback(code)
             } else {
                 Log.e("MainActivity", "Authorization code not found in callback URI")
             }

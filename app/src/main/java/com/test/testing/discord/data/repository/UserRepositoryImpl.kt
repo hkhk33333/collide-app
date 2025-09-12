@@ -1,6 +1,5 @@
 package com.test.testing.discord.data.repository
 
-import android.content.Context
 import android.util.Log
 import com.test.testing.discord.api.ApiService
 import com.test.testing.discord.cache.CacheManager
@@ -18,10 +17,9 @@ import kotlinx.coroutines.flow.flowOn
 import retrofit2.Response
 
 class UserRepositoryImpl(
-    private val context: Context,
     private val apiService: ApiService,
-    private val cacheManager: CacheManager = CacheManager.getInstance(context),
-    private val networkResilience: NetworkResilience = NetworkResilience.getInstance(context),
+    private val cacheManager: CacheManager,
+    private val networkResilience: NetworkResilience,
 ) : UserRepository {
     override fun getCurrentUser(
         token: String,
