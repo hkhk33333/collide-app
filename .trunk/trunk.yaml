@@ -29,7 +29,6 @@ lint:
         - settings.gradle.kts
         - gradle.properties
         - proguard-rules.pro
-        - lint.xml
   disabled:
     # We disable checkov because it is an infrastructure-as-code scanner,
     # and this project does not contain any IaC files (e.g., Terraform, Dockerfile, Kubernetes).
@@ -73,10 +72,11 @@ lint:
           # Disable configuration cache to prevent CI lock contention when running in parallel
           run: sh -c './gradlew lint --no-configuration-cache && cp app/build/reports/lint-results-debug.sarif ${tmpfile}'
           output: sarif
-          read_output_from: tmp_file
+          read_output_from: stdout
           success_codes: [0]
           run_linter_from: workspace
           target: .
+          cache_results: true
   # We vendor the Gradle wrapper script; it's third-party generated and not maintained here.
   # Ignore it for shellcheck to prevent false positives and noisy findings on non-project code.
   ignore:
