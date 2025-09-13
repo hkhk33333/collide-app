@@ -1,62 +1,69 @@
 package com.test.testing.discord.ui.map
 
+import android.os.Parcelable
+import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.UiAction
-import com.test.testing.discord.ui.UiState
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
 
 /**
- * Enhanced UI state for the map screen with better error handling and actions
+ * Immutable UI state for the map screen following MVI pattern
  */
-sealed interface MapScreenUiState {
-    val users: List<User> get() = emptyList()
-    val isRefreshing: Boolean get() = false
-    val lastUpdated: Long get() = System.currentTimeMillis()
+sealed class MapScreenState : Parcelable {
+    @Parcelize
+    object Loading : MapScreenState()
 
-    object Loading : MapScreenUiState
-
-    data class Success(
-        override val users: List<User> = emptyList(),
-        override val isRefreshing: Boolean = false,
-        override val lastUpdated: Long = System.currentTimeMillis(),
+    @Parcelize
+    data class Content(
+        val users: List<User> = emptyList(),
         val selectedUserId: String? = null,
         val isLocationEnabled: Boolean = false,
-    ) : MapScreenUiState
+        val isRefreshing: Boolean = false,
+        val lastUpdated: Long = System.currentTimeMillis(),
+    ) : MapScreenState()
 
+    @Parcelize
     data class Error(
         val message: String,
-        val errorType: com.test.testing.discord.models.ErrorType = com.test.testing.discord.models.ErrorType.UNKNOWN,
+        val errorType: ErrorType = ErrorType.UNKNOWN,
         val canRetry: Boolean = false,
         val actions: List<UiAction> = emptyList(),
-        override val isRefreshing: Boolean = false,
-    ) : MapScreenUiState {
+        val isRefreshing: Boolean = false,
+    ) : MapScreenState() {
+        @IgnoredOnParcel
         val shouldShowRetryButton: Boolean = canRetry && actions.contains(UiAction.Retry)
-    }
-
-    companion object {
-        fun fromUiState(
-            uiState: UiState<List<User>>,
-            isRefreshing: Boolean = false,
-        ): MapScreenUiState =
-            when (uiState) {
-                is UiState.Loading -> Loading
-                is UiState.Success ->
-                    Success(
-                        users = uiState.data,
-                        isRefreshing = isRefreshing,
-                    )
-                is UiState.Error ->
-                    Error(
-                        message = uiState.message,
-                        canRetry = uiState.canRetry,
-                        actions = if (uiState.canRetry) listOf(UiAction.Retry) else emptyList(),
-                        isRefreshing = isRefreshing,
-                    )
-            }
     }
 }
 
-// Legacy type aliases for backward compatibility
-typealias NetworkError = MapScreenUiState.Error
-typealias AuthenticationError = MapScreenUiState.Error
-typealias ServerError = MapScreenUiState.Error
-typealias UnknownError = MapScreenUiState.Error
+/**
+ * Intents representing user actions for the map screen
+ */
+sealed class MapIntent {
+    object LoadUsers : MapIntent()
+
+    object RefreshUsers : MapIntent()
+
+    data class UserSelected(
+        val userId: String,
+    ) : MapIntent()
+
+    data class LocationPermissionChanged(
+        val granted: Boolean,
+    ) : MapIntent()
+}
+
+/**
+ * Effects representing side effects that need UI handling
+ */
+sealed class MapEffect {
+    data class ShowSnackbar(
+        val message: String,
+    ) : MapEffect()
+
+    data class NavigateToUser(
+        val userId: String,
+    ) : MapEffect()
+
+    object RequestLocationPermission : MapEffect()
+}

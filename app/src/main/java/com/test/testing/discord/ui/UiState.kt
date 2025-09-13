@@ -1,7 +1,10 @@
 package com.test.testing.discord.ui
 
+import android.os.Parcelable
 import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.Result
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
 
 /**
  * Common UI states for the application
@@ -44,27 +47,33 @@ sealed class UiState<out T> {
 /**
  * Common actions for UI components
  */
-sealed class UiAction {
+sealed class UiAction : Parcelable {
+    @Parcelize
     object Retry : UiAction()
 
+    @Parcelize
     object Refresh : UiAction()
 
+    @Parcelize
     data class Navigate(
         val destination: String,
     ) : UiAction()
 
+    @Parcelize
     object Dismiss : UiAction()
 }
 
 /**
  * Enhanced error state with recovery actions
  */
+@Parcelize
 data class ErrorState(
     val message: String,
     val errorType: ErrorType = ErrorType.UNKNOWN,
     val canRetry: Boolean = false,
     val recoveryActions: List<UiAction> = emptyList(),
-) {
+) : Parcelable {
+    @IgnoredOnParcel
     val shouldShowRetry: Boolean = canRetry && recoveryActions.contains(UiAction.Retry)
 
     companion object {

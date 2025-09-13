@@ -33,7 +33,6 @@ import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
 import com.test.testing.discord.ui.CoilImageLoader
-import com.test.testing.discord.ui.UiEvent
 import com.test.testing.discord.viewmodels.MapViewModel
 import kotlin.math.roundToInt
 
@@ -42,18 +41,9 @@ fun MapScreen(
     mapViewModel: MapViewModel,
     locationManager: LocationManager,
 ) {
-    val uiState by mapViewModel.uiState.collectAsState()
+    val state by mapViewModel.state.collectAsState()
     val currentUserLocation by locationManager.locationUpdates.collectAsState()
     var hasInitiallyCentered by rememberSaveable { mutableStateOf(false) }
-
-    // Debug logging for state changes (only in debug builds)
-    LaunchedEffect(uiState) {
-        if (BuildConfig.DEBUG) {
-            android.util.Log.d("MapScreen", "UI state changed: $uiState, isRefreshing: ${uiState.isRefreshing}")
-        }
-    }
-
-    // Track if the map has finished loading
     var isMapLoaded by remember { mutableStateOf(false) }
 
     val cameraPositionState =
@@ -61,121 +51,192 @@ fun MapScreen(
             position = CameraPosition.fromLatLngZoom(LatLng(37.7749, -122.4194), 10f)
         }
 
-    // This effect will now only run once the map is loaded AND we have a location.
+    HandleMapEffects(mapViewModel)
+    HandleMapStateLogging(state)
+    HandleMapCentering(currentUserLocation, isMapLoaded, hasInitiallyCentered, cameraPositionState) { hasInitiallyCentered = true }
+
+    MapScreenContent(
+        state = state,
+        cameraPositionState = cameraPositionState,
+        locationManager = locationManager,
+        mapViewModel = mapViewModel,
+        onMapLoaded = { isMapLoaded = true },
+    )
+}
+
+@Composable
+private fun HandleMapEffects(mapViewModel: MapViewModel) {
+    LaunchedEffect(mapViewModel) {
+        mapViewModel.effects.collect { effect ->
+            when (effect) {
+                is MapEffect.ShowSnackbar -> {
+                    Log.d("MapScreen", "Show snackbar: ${effect.message}")
+                }
+
+                is MapEffect.NavigateToUser -> {
+                    Log.d("MapScreen", "Navigate to user: ${effect.userId}")
+                }
+
+                is MapEffect.RequestLocationPermission -> {
+                    Log.d("MapScreen", "Request location permission")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HandleMapStateLogging(state: MapScreenState) {
+    LaunchedEffect(state) {
+        if (BuildConfig.DEBUG) {
+            val isRefreshing =
+                when (state) {
+                    is MapScreenState.Content -> state.isRefreshing
+                    is MapScreenState.Error -> state.isRefreshing
+                    MapScreenState.Loading -> false
+                }
+            android.util.Log.d("MapScreen", "UI state changed: $state, isRefreshing: $isRefreshing")
+        }
+    }
+}
+
+@Composable
+private fun HandleMapCentering(
+    currentUserLocation: android.location.Location?,
+    isMapLoaded: Boolean,
+    hasInitiallyCentered: Boolean,
+    cameraPositionState: CameraPositionState,
+    onCentered: () -> Unit,
+) {
     LaunchedEffect(currentUserLocation, isMapLoaded) {
         if (currentUserLocation != null && isMapLoaded && !hasInitiallyCentered) {
             cameraPositionState.animate(
                 com.google.android.gms.maps.CameraUpdateFactory.newCameraPosition(
                     CameraPosition.fromLatLngZoom(
-                        LatLng(currentUserLocation!!.latitude, currentUserLocation!!.longitude),
+                        LatLng(currentUserLocation.latitude, currentUserLocation.longitude),
                         12f,
                     ),
                 ),
             )
-            hasInitiallyCentered = true
+            onCentered()
         }
     }
+}
 
+@Composable
+private fun MapScreenContent(
+    state: MapScreenState,
+    cameraPositionState: CameraPositionState,
+    locationManager: LocationManager,
+    mapViewModel: MapViewModel,
+    onMapLoaded: () -> Unit,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Use a when expression to handle the state
-        when (val state = uiState) {
-            is MapScreenUiState.Loading -> {
-                // Show a full-screen loading indicator
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        when (state) {
+            is MapScreenState.Loading -> LoadingContent()
+            is MapScreenState.Error -> ErrorContent(state, mapViewModel)
+            is MapScreenState.Content -> SuccessContent(state, cameraPositionState, locationManager, mapViewModel, onMapLoaded)
+        }
+    }
+}
+
+@Composable
+private fun LoadingContent() {
+    Box(modifier = Modifier.fillMaxSize()) {
+        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+    }
+}
+
+@Composable
+private fun ErrorContent(
+    state: MapScreenState.Error,
+    mapViewModel: MapViewModel,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = state.message,
+            modifier = Modifier.align(Alignment.Center),
+            color = MaterialTheme.colorScheme.error,
+        )
+
+        RefreshButtonOverlay(
+            modifier = Modifier.align(Alignment.TopCenter),
+            isRefreshing = state.isRefreshing,
+            onRefreshClick = {
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
+                }
+                mapViewModel.processIntent(MapIntent.RefreshUsers)
+            },
+        )
+    }
+}
+
+@Composable
+private fun SuccessContent(
+    state: MapScreenState.Content,
+    cameraPositionState: CameraPositionState,
+    locationManager: LocationManager,
+    mapViewModel: MapViewModel,
+    onMapLoaded: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            properties = MapProperties(isMyLocationEnabled = locationManager.locationPermissionGranted),
+            onMapLoaded = onMapLoaded,
+        ) {
+            state.users.forEach { user ->
+                user.location?.let { location ->
+                    val position = LatLng(location.latitude, location.longitude)
+                    UserMarker(
+                        user = user,
+                        position = position,
+                        onClick = { mapViewModel.processIntent(MapIntent.UserSelected(user.id)) },
+                    )
+                }
             }
-            is MapScreenUiState.Error -> {
-                // Show an error message
-                Text(
-                    text = state.message,
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.error,
+        }
+
+        RefreshButtonOverlay(
+            modifier = Modifier.align(Alignment.TopCenter),
+            isRefreshing = state.isRefreshing,
+            onRefreshClick = {
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("MapScreen", "Refresh button clicked from Content state")
+                }
+                mapViewModel.processIntent(MapIntent.RefreshUsers)
+            },
+        )
+    }
+}
+
+@Composable
+private fun RefreshButtonOverlay(
+    modifier: Modifier,
+    isRefreshing: Boolean,
+    onRefreshClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            modifier
+                .padding(top = 16.dp)
+                .size(48.dp)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isRefreshing) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            IconButton(onClick = onRefreshClick) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh Users",
                 )
-
-                // The refresh button and other UI can be layered on top even in error state
-                Box(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 16.dp)
-                            .size(48.dp)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (state.isRefreshing) {
-                        // Show loading indicator on the refresh button when refreshing
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    } else {
-                        // Show refresh button when not refreshing
-                        IconButton(onClick = {
-                            if (BuildConfig.DEBUG) {
-                                android.util.Log.d("MapScreen", "Refresh button clicked from Error state")
-                            }
-                            mapViewModel.onEvent(UiEvent.RefreshUsers)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh Users",
-                            )
-                        }
-                    }
-                }
-            }
-            is MapScreenUiState.Success -> {
-                // On success, display the map and markers
-                GoogleMap(
-                    modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = cameraPositionState,
-                    properties = MapProperties(isMyLocationEnabled = locationManager.locationPermissionGranted),
-                    // Use the onMapLoaded callback to update our state
-                    onMapLoaded = {
-                        isMapLoaded = true
-                    },
-                ) {
-                    state.users.forEach { user ->
-                        user.location?.let { location ->
-                            val position = LatLng(location.latitude, location.longitude)
-                            UserMarker(
-                                user = user,
-                                position = position,
-                            )
-                        }
-                    }
-                }
-
-                // The refresh button and other UI can be layered on top
-                Box(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 16.dp)
-                            .size(48.dp)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (state.isRefreshing) {
-                        // Show loading indicator on the refresh button when refreshing
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    } else {
-                        // Show refresh button when not refreshing
-                        IconButton(onClick = {
-                            if (BuildConfig.DEBUG) {
-                                android.util.Log.d("MapScreen", "Refresh button clicked from Success state")
-                            }
-                            mapViewModel.onEvent(UiEvent.RefreshUsers)
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh Users",
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -185,6 +246,7 @@ fun MapScreen(
 fun UserMarker(
     user: User,
     position: LatLng,
+    onClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var bitmapDescriptor by remember { mutableStateOf<BitmapDescriptor?>(null) }
@@ -218,11 +280,17 @@ fun UserMarker(
         }
     }
 
+    val markerState = remember { MarkerState(position = position) }
+
     Marker(
-        state = remember(position) { MarkerState(position = position) },
+        state = markerState,
         title = user.duser.username,
         snippet = "Accuracy: ${user.location?.accuracy?.roundToInt()}m",
         icon = bitmapDescriptor, // Use custom avatar or default marker
         anchor = Offset(0.5f, 0.45f), // Slightly above center to account for shadow
+        onClick = {
+            onClick()
+            false // Don't consume the click to allow default behavior
+        },
     )
 }

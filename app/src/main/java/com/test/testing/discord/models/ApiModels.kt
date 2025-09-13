@@ -1,6 +1,8 @@
 package com.test.testing.discord.models
 
+import android.os.Parcelable
 import com.google.gson.annotations.SerializedName
+import kotlinx.parcelize.Parcelize
 
 // Enhanced Result wrapper for better error handling and recovery
 sealed class Result<out T> {
@@ -89,6 +91,7 @@ data class ResultMetadata(
 )
 
 // Corresponds to LocationSchema
+@Parcelize
 data class Location(
     @SerializedName("latitude") val latitude: Double,
     @SerializedName("longitude") val longitude: Double,
@@ -96,20 +99,22 @@ data class Location(
     @SerializedName("desiredAccuracy") val desiredAccuracy: Double,
     // THE ONLY CHANGE IS HERE: Long -> Double
     @SerializedName("lastUpdated") val lastUpdated: Double,
-)
+) : Parcelable
 
 // Corresponds to PrivacySettingsSchema
+@Parcelize
 data class PrivacySettings(
     @SerializedName("enabledGuilds") val enabledGuilds: List<String>,
     @SerializedName("blockedUsers") val blockedUsers: List<String>,
-)
+) : Parcelable
 
 // Corresponds to DiscordUserSchema
+@Parcelize
 data class DiscordUser(
     @SerializedName("id") val id: String,
     @SerializedName("username") val username: String,
     @SerializedName("avatar") val avatar: String?,
-) {
+) : Parcelable {
     val avatarUrl: String
         get() =
             if (avatar != null) {
@@ -121,6 +126,7 @@ data class DiscordUser(
 }
 
 // Corresponds to UserSchema
+@Parcelize
 data class User(
     @SerializedName("id") val id: String,
     @SerializedName("location") val location: Location?,
@@ -131,14 +137,15 @@ data class User(
     @SerializedName("allowNearbyNotifications") val allowNearbyNotifications: Boolean?,
     @SerializedName("nearbyNotificationDistance") val nearbyNotificationDistance: Double?,
     @SerializedName("allowNearbyNotificationDistance") val allowNearbyNotificationDistance: Double?,
-)
+) : Parcelable
 
 // Corresponds to GuildSchema
+@Parcelize
 data class Guild(
     @SerializedName("id") val id: String,
     @SerializedName("name") val name: String,
     @SerializedName("icon") val icon: String?,
-) {
+) : Parcelable {
     val iconUrl: String
         get() =
             if (icon != null) {
@@ -149,22 +156,25 @@ data class Guild(
 }
 
 // Corresponds to DiscordTokenResponseSchema
+@Parcelize
 data class DiscordTokenResponse(
     @SerializedName("access_token") val accessToken: String,
     @SerializedName("token_type") val tokenType: String,
     @SerializedName("expires_in") val expiresIn: Int,
     @SerializedName("refresh_token") val refreshToken: String,
     @SerializedName("scope") val scope: String,
-)
+) : Parcelable
 
 // For POST /token request
+@Parcelize
 data class TokenRequest(
     @SerializedName("code") val code: String,
     @SerializedName("code_verifier") val codeVerifier: String,
     @SerializedName("redirect_uri") val redirectUri: String,
-)
+) : Parcelable
 
 // For successful responses like POST /users/me
+@Parcelize
 data class SuccessResponse(
     @SerializedName("success") val success: Boolean,
-)
+) : Parcelable

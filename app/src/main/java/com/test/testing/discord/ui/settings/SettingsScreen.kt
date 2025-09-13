@@ -10,7 +10,6 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,7 +19,6 @@ import coil.compose.AsyncImage
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.User
-import com.test.testing.discord.ui.UiEvent
 import com.test.testing.discord.viewmodels.UserViewModel
 
 @Composable
@@ -29,49 +27,7 @@ fun SettingsScreen(
     users: List<User>,
     locationManager: LocationManager,
 ) {
-    val uiState by userViewModel.uiState.collectAsState()
-
-    // Local UI state - preserved during configuration changes
-    var selectedGuilds by rememberSaveable { mutableStateOf(setOf<String>()) }
-    var blockedUsers by rememberSaveable { mutableStateOf(listOf<String>()) }
-    var guildSearchText by rememberSaveable { mutableStateOf("") }
-    var userSearchText by rememberSaveable { mutableStateOf("") }
-    var receiveNearbyNotifications by rememberSaveable { mutableStateOf(true) }
-    var allowNearbyNotifications by rememberSaveable { mutableStateOf(true) }
-    var nearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
-    var allowNearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
-
-    // Sync local state with data from the view model
-    LaunchedEffect(uiState) {
-        val currentUser = uiState.currentUser
-        currentUser?.let { user ->
-            selectedGuilds = user.privacy.enabledGuilds.toSet()
-            blockedUsers = user.privacy.blockedUsers
-            receiveNearbyNotifications = user.receiveNearbyNotifications ?: true
-            allowNearbyNotifications = user.allowNearbyNotifications ?: true
-            nearbyNotificationDistance = user.nearbyNotificationDistance ?: 500.0
-            allowNearbyNotificationDistance = user.allowNearbyNotificationDistance ?: 500.0
-        }
-    }
-
-    val saveSettings = {
-        val currentUser = uiState.currentUser
-        currentUser?.let { user: com.test.testing.discord.models.User ->
-            val updatedUser =
-                user.copy(
-                    privacy =
-                        user.privacy.copy(
-                            enabledGuilds = selectedGuilds.toList(),
-                            blockedUsers = blockedUsers,
-                        ),
-                    receiveNearbyNotifications = receiveNearbyNotifications,
-                    allowNearbyNotifications = allowNearbyNotifications,
-                    nearbyNotificationDistance = nearbyNotificationDistance,
-                    allowNearbyNotificationDistance = allowNearbyNotificationDistance,
-                )
-            userViewModel.onEvent(UiEvent.UpdateUser(updatedUser))
-        }
-    }
+    val state by userViewModel.state.collectAsState()
 
     LazyColumn(
         modifier =
@@ -81,84 +37,287 @@ fun SettingsScreen(
         contentPadding = PaddingValues(vertical = 16.dp),
     ) {
         item {
-            SectionHeader("Discord Servers")
-            ServerListView(
-                guilds = uiState.guilds,
-                selectedGuilds = selectedGuilds,
-                searchText = guildSearchText,
-                onSearchTextChanged = { guildSearchText = it },
-                onToggle = { guildId, isEnabled ->
-                    selectedGuilds =
-                        if (isEnabled) {
-                            selectedGuilds + guildId
-                        } else {
-                            selectedGuilds - guildId
-                        }
-                    saveSettings()
+            ServerSettingsSection(
+                state = state,
+                onSaveSettings = { updatedUser ->
+                    userViewModel.processIntent(UserIntent.UpdateUser(updatedUser))
                 },
             )
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         item {
-            SectionHeader("Users")
-            UserListView(
+            UserSettingsSection(
                 users = users,
-                currentUser = uiState.currentUser,
-                blockedUsers = blockedUsers,
-                searchText = userSearchText,
-                onSearchTextChanged = { userSearchText = it },
-                onToggleBlock = { userId ->
-                    blockedUsers =
-                        if (blockedUsers.contains(userId)) {
-                            blockedUsers - userId
-                        } else {
-                            blockedUsers + userId
-                        }
-                    saveSettings()
+                state = state,
+                onSaveSettings = { updatedUser ->
+                    userViewModel.processIntent(UserIntent.UpdateUser(updatedUser))
                 },
             )
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         item {
-            SectionHeader("Location Settings")
-            LocationSettingsView(locationManager = locationManager)
-            Spacer(modifier = Modifier.height(16.dp))
+            LocationSettingsSection(locationManager = locationManager)
         }
 
         item {
-            SectionHeader("Nearby Notifications")
-            NotificationSettingsView(
-                receiveNearbyNotifications = receiveNearbyNotifications,
-                onReceiveNearbyChanged = {
-                    receiveNearbyNotifications = it
-                    saveSettings()
-                },
-                allowNearbyNotifications = allowNearbyNotifications,
-                onAllowNearbyChanged = {
-                    allowNearbyNotifications = it
-                    saveSettings()
-                },
-                nearbyNotificationDistance = nearbyNotificationDistance,
-                onNearbyDistanceChanged = {
-                    nearbyNotificationDistance = it
-                    saveSettings()
-                },
-                allowNearbyNotificationDistance = allowNearbyNotificationDistance,
-                onAllowNearbyDistanceChanged = {
-                    allowNearbyNotificationDistance = it
-                    saveSettings()
+            NotificationSettingsSection(
+                state = state,
+                onSaveSettings = { updatedUser ->
+                    userViewModel.processIntent(UserIntent.UpdateUser(updatedUser))
                 },
             )
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         item {
-            SectionHeader("Account")
-            AccountActionsView(userViewModel = userViewModel)
-            Spacer(modifier = Modifier.height(16.dp))
+            AccountSettingsSection(userViewModel = userViewModel)
         }
+    }
+}
+
+@Composable
+fun ServerSettingsSection(
+    state: UserScreenState,
+    onSaveSettings: (User) -> Unit,
+) {
+    // Local UI state - preserved during configuration changes
+    var selectedGuilds by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var guildSearchText by rememberSaveable { mutableStateOf("") }
+
+    // Sync local state with data from the view model
+    LaunchedEffect(state) {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    selectedGuilds = user.privacy.enabledGuilds.toSet()
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    val saveSettings = {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    val updatedUser =
+                        user.copy(
+                            privacy = user.privacy.copy(enabledGuilds = selectedGuilds.toList()),
+                        )
+                    onSaveSettings(updatedUser)
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    Column {
+        SectionHeader("Discord Servers")
+        ServerListView(
+            guilds =
+                when (val currentState = state) {
+                    is UserScreenState.Content -> currentState.guilds
+                    else -> emptyList()
+                },
+            selectedGuilds = selectedGuilds,
+            searchText = guildSearchText,
+            onSearchTextChanged = { guildSearchText = it },
+            onToggle = { guildId, isEnabled ->
+                selectedGuilds =
+                    if (isEnabled) {
+                        selectedGuilds + guildId
+                    } else {
+                        selectedGuilds - guildId
+                    }
+                saveSettings()
+            },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun UserSettingsSection(
+    users: List<User>,
+    state: UserScreenState,
+    onSaveSettings: (User) -> Unit,
+) {
+    // Local UI state - preserved during configuration changes
+    var blockedUsers by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var userSearchText by rememberSaveable { mutableStateOf("") }
+
+    // Sync local state with data from the view model
+    LaunchedEffect(state) {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    blockedUsers = user.privacy.blockedUsers
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    val saveSettings = {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    val updatedUser =
+                        user.copy(
+                            privacy = user.privacy.copy(blockedUsers = blockedUsers),
+                        )
+                    onSaveSettings(updatedUser)
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    Column {
+        SectionHeader("Users")
+        UserListView(
+            users = users,
+            currentUser =
+                when (val currentState = state) {
+                    is UserScreenState.Content -> currentState.currentUser
+                    else -> null
+                },
+            blockedUsers = blockedUsers,
+            searchText = userSearchText,
+            onSearchTextChanged = { userSearchText = it },
+            onToggleBlock = { userId ->
+                blockedUsers =
+                    if (blockedUsers.contains(userId)) {
+                        blockedUsers - userId
+                    } else {
+                        blockedUsers + userId
+                    }
+                saveSettings()
+            },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun LocationSettingsSection(locationManager: LocationManager) {
+    Column {
+        SectionHeader("Location Settings")
+        LocationSettingsView(locationManager = locationManager)
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun NotificationSettingsSection(
+    state: UserScreenState,
+    onSaveSettings: (User) -> Unit,
+) {
+    // Local UI state - preserved during configuration changes
+    var receiveNearbyNotifications by rememberSaveable { mutableStateOf(true) }
+    var allowNearbyNotifications by rememberSaveable { mutableStateOf(true) }
+    var nearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
+    var allowNearbyNotificationDistance by rememberSaveable { mutableDoubleStateOf(500.0) }
+
+    // Sync local state with data from the view model
+    LaunchedEffect(state) {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    receiveNearbyNotifications = user.receiveNearbyNotifications ?: true
+                    allowNearbyNotifications = user.allowNearbyNotifications ?: true
+                    nearbyNotificationDistance = user.nearbyNotificationDistance ?: 500.0
+                    allowNearbyNotificationDistance = user.allowNearbyNotificationDistance ?: 500.0
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    val saveSettings = {
+        val currentState = state
+        when (currentState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentState.currentUser
+                currentUser?.let { user ->
+                    val updatedUser =
+                        user.copy(
+                            receiveNearbyNotifications = receiveNearbyNotifications,
+                            allowNearbyNotifications = allowNearbyNotifications,
+                            nearbyNotificationDistance = nearbyNotificationDistance,
+                            allowNearbyNotificationDistance = allowNearbyNotificationDistance,
+                        )
+                    onSaveSettings(updatedUser)
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
+        }
+    }
+
+    Column {
+        SectionHeader("Nearby Notifications")
+        NotificationSettingsView(
+            receiveNearbyNotifications = receiveNearbyNotifications,
+            onReceiveNearbyChanged = {
+                receiveNearbyNotifications = it
+                saveSettings()
+            },
+            allowNearbyNotifications = allowNearbyNotifications,
+            onAllowNearbyChanged = {
+                allowNearbyNotifications = it
+                saveSettings()
+            },
+            nearbyNotificationDistance = nearbyNotificationDistance,
+            onNearbyDistanceChanged = {
+                nearbyNotificationDistance = it
+                saveSettings()
+            },
+            allowNearbyNotificationDistance = allowNearbyNotificationDistance,
+            onAllowNearbyDistanceChanged = {
+                allowNearbyNotificationDistance = it
+                saveSettings()
+            },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun AccountSettingsSection(userViewModel: UserViewModel) {
+    Column {
+        SectionHeader("Account")
+        AccountActionsView(
+            userViewModel = userViewModel,
+            onIntent = { intent -> userViewModel.processIntent(intent) },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -383,7 +542,10 @@ fun NotificationSettingsView(
 }
 
 @Composable
-fun AccountActionsView(userViewModel: UserViewModel) {
+fun AccountActionsView(
+    userViewModel: UserViewModel,
+    onIntent: (UserIntent) -> Unit,
+) {
     // AuthManager is now injected into UserViewModel, no need to manually instantiate
 
     ListItem(
@@ -401,7 +563,7 @@ fun AccountActionsView(userViewModel: UserViewModel) {
         trailingContent = { Icon(Icons.Default.Delete, contentDescription = "Delete Data", tint = MaterialTheme.colorScheme.error) },
         modifier =
             Modifier.clickable {
-                userViewModel.onEvent(UiEvent.DeleteUserData)
+                onIntent(UserIntent.DeleteUserData)
             },
     )
 }

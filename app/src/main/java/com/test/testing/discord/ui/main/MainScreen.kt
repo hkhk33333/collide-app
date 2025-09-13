@@ -23,6 +23,7 @@ import com.test.testing.discord.ui.ConnectivityAware
 import com.test.testing.discord.ui.ConnectivityStatus
 import com.test.testing.discord.ui.map.MapScreen
 import com.test.testing.discord.ui.settings.SettingsScreen
+import com.test.testing.discord.ui.settings.UserScreenState
 import com.test.testing.discord.viewmodels.MapViewModel
 import com.test.testing.discord.viewmodels.UserViewModel
 
@@ -44,14 +45,23 @@ fun MainScreen(locationManager: LocationManager) {
     val mapViewModel: MapViewModel = viewModel()
     val userViewModel: UserViewModel = viewModel()
 
-    val userUiState by userViewModel.uiState.collectAsState()
-    val mapUiState by mapViewModel.uiState.collectAsState()
+    val userState by userViewModel.state.collectAsState()
+    val mapState by mapViewModel.state.collectAsState()
 
     // This effect coordinates between UserViewModel and MapViewModel
-    LaunchedEffect(userUiState) {
-        val currentUser = userUiState.currentUser
-        currentUser?.let {
-            mapViewModel.initializeForUser()
+    LaunchedEffect(userState) {
+        val currentUserState = userState
+        when (currentUserState) {
+            is UserScreenState.Content -> {
+                val currentUser = currentUserState.currentUser
+                currentUser?.let {
+                    mapViewModel.initializeForUser()
+                }
+            }
+
+            else -> {
+                // Handle other states if needed
+            }
         }
     }
 
@@ -97,7 +107,15 @@ fun MainScreen(locationManager: LocationManager) {
             ) { innerPadding ->
                 NavHost(navController, startDestination = Screen.Map.route, Modifier.padding(innerPadding)) {
                     composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
-                    composable(Screen.Settings.route) { SettingsScreen(userViewModel, mapUiState.users, locationManager) }
+                    composable(Screen.Settings.route) {
+                        val currentMapState = mapState
+                        val users =
+                            when (currentMapState) {
+                                is com.test.testing.discord.ui.map.MapScreenState.Content -> currentMapState.users
+                                else -> emptyList()
+                            }
+                        SettingsScreen(userViewModel, users, locationManager)
+                    }
                 }
             }
         },
