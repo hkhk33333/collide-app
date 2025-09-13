@@ -17,14 +17,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.test.testing.discord.location.LocationManager
-import com.test.testing.discord.models.Guild
-import com.test.testing.discord.models.User
 import com.test.testing.discord.viewmodels.UserViewModel
 
 @Composable
 fun SettingsScreen(
     userViewModel: UserViewModel,
-    users: List<User>,
+    users: List<com.test.testing.discord.domain.models.DomainUser>,
     locationManager: LocationManager,
 ) {
     val state by userViewModel.state.collectAsState()
@@ -77,7 +75,7 @@ fun SettingsScreen(
 @Composable
 fun ServerSettingsSection(
     state: UserScreenState,
-    onSaveSettings: (User) -> Unit,
+    onSaveSettings: (com.test.testing.discord.domain.models.DomainUser) -> Unit,
 ) {
     // Local UI state - preserved during configuration changes
     var selectedGuilds by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -90,7 +88,10 @@ fun ServerSettingsSection(
             is UserScreenState.Content -> {
                 val currentUser = currentState.currentUser
                 currentUser?.let { user ->
-                    selectedGuilds = user.privacy.enabledGuilds.toSet()
+                    selectedGuilds =
+                        user.privacySettings.enabledGuilds
+                            .map { it.value }
+                            .toSet()
                 }
             }
 
@@ -108,7 +109,15 @@ fun ServerSettingsSection(
                 currentUser?.let { user ->
                     val updatedUser =
                         user.copy(
-                            privacy = user.privacy.copy(enabledGuilds = selectedGuilds.toList()),
+                            privacySettings =
+                                user.privacySettings.copy(
+                                    enabledGuilds =
+                                        selectedGuilds
+                                            .map {
+                                                com.test.testing.discord.domain.models
+                                                    .GuildId(it)
+                                            }.toSet(),
+                                ),
                         )
                     onSaveSettings(updatedUser)
                 }
@@ -147,9 +156,9 @@ fun ServerSettingsSection(
 
 @Composable
 fun UserSettingsSection(
-    users: List<User>,
+    users: List<com.test.testing.discord.domain.models.DomainUser>,
     state: UserScreenState,
-    onSaveSettings: (User) -> Unit,
+    onSaveSettings: (com.test.testing.discord.domain.models.DomainUser) -> Unit,
 ) {
     // Local UI state - preserved during configuration changes
     var blockedUsers by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -162,7 +171,7 @@ fun UserSettingsSection(
             is UserScreenState.Content -> {
                 val currentUser = currentState.currentUser
                 currentUser?.let { user ->
-                    blockedUsers = user.privacy.blockedUsers
+                    blockedUsers = user.privacySettings.blockedUsers.map { it.value }
                 }
             }
 
@@ -180,7 +189,15 @@ fun UserSettingsSection(
                 currentUser?.let { user ->
                     val updatedUser =
                         user.copy(
-                            privacy = user.privacy.copy(blockedUsers = blockedUsers),
+                            privacySettings =
+                                user.privacySettings.copy(
+                                    blockedUsers =
+                                        blockedUsers
+                                            .map {
+                                                com.test.testing.discord.domain.models
+                                                    .UserId(it)
+                                            }.toSet(),
+                                ),
                         )
                     onSaveSettings(updatedUser)
                 }
@@ -230,7 +247,7 @@ fun LocationSettingsSection(locationManager: LocationManager) {
 @Composable
 fun NotificationSettingsSection(
     state: UserScreenState,
-    onSaveSettings: (User) -> Unit,
+    onSaveSettings: (com.test.testing.discord.domain.models.DomainUser) -> Unit,
 ) {
     // Local UI state - preserved during configuration changes
     var receiveNearbyNotifications by rememberSaveable { mutableStateOf(true) }
@@ -245,10 +262,10 @@ fun NotificationSettingsSection(
             is UserScreenState.Content -> {
                 val currentUser = currentState.currentUser
                 currentUser?.let { user ->
-                    receiveNearbyNotifications = user.receiveNearbyNotifications ?: true
-                    allowNearbyNotifications = user.allowNearbyNotifications ?: true
-                    nearbyNotificationDistance = user.nearbyNotificationDistance ?: 500.0
-                    allowNearbyNotificationDistance = user.allowNearbyNotificationDistance ?: 500.0
+                    receiveNearbyNotifications = user.privacySettings.nearbyNotificationsEnabled
+                    allowNearbyNotifications = user.privacySettings.locationSharingEnabled
+                    nearbyNotificationDistance = 500.0 // Domain logic: default distance
+                    allowNearbyNotificationDistance = 500.0 // Domain logic: default distance
                 }
             }
 
@@ -266,10 +283,11 @@ fun NotificationSettingsSection(
                 currentUser?.let { user ->
                     val updatedUser =
                         user.copy(
-                            receiveNearbyNotifications = receiveNearbyNotifications,
-                            allowNearbyNotifications = allowNearbyNotifications,
-                            nearbyNotificationDistance = nearbyNotificationDistance,
-                            allowNearbyNotificationDistance = allowNearbyNotificationDistance,
+                            privacySettings =
+                                user.privacySettings.copy(
+                                    nearbyNotificationsEnabled = receiveNearbyNotifications,
+                                    locationSharingEnabled = allowNearbyNotifications,
+                                ),
                         )
                     onSaveSettings(updatedUser)
                 }
@@ -336,23 +354,23 @@ fun SectionHeader(title: String) {
 
 @Composable
 fun ServerListView(
-    guilds: List<Guild>,
+    guilds: List<com.test.testing.discord.domain.models.DomainGuild>,
     selectedGuilds: Set<String>,
     searchText: String,
     onSearchTextChanged: (String) -> Unit,
     onToggle: (String, Boolean) -> Unit,
 ) {
-    val filteredGuilds = guilds.filter { it.name.contains(searchText, ignoreCase = true) }
+    val filteredGuilds = guilds.filter { it.name.value.contains(searchText, ignoreCase = true) }
 
     FilterableListView(
         items = filteredGuilds,
         searchText = searchText,
         onSearchTextChanged = onSearchTextChanged,
         searchPlaceholder = "Search servers...",
-        keySelector = { guild: Guild -> guild.id },
+        keySelector = { guild: com.test.testing.discord.domain.models.DomainGuild -> guild.id.value },
         itemContent = { guild ->
             ListItem(
-                headlineContent = { Text(guild.name) },
+                headlineContent = { Text(guild.name.value) },
                 leadingContent = {
                     Box(
                         modifier =
@@ -363,15 +381,15 @@ fun ServerListView(
                     ) {
                         AsyncImage(
                             model = guild.iconUrl,
-                            contentDescription = guild.name,
+                            contentDescription = guild.name.value,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
                 },
                 trailingContent = {
                     Switch(
-                        checked = selectedGuilds.contains(guild.id),
-                        onCheckedChange = { onToggle(guild.id, it) },
+                        checked = selectedGuilds.contains(guild.id.value),
+                        onCheckedChange = { onToggle(guild.id.value, it) },
                     )
                 },
             )
@@ -381,25 +399,25 @@ fun ServerListView(
 
 @Composable
 fun UserListView(
-    users: List<User>,
-    currentUser: User?,
+    users: List<com.test.testing.discord.domain.models.DomainUser>,
+    currentUser: com.test.testing.discord.domain.models.DomainUser?,
     blockedUsers: List<String>,
     searchText: String,
     onSearchTextChanged: (String) -> Unit,
     onToggleBlock: (String) -> Unit,
 ) {
-    val filteredUsers = users.filter { it.duser.username.contains(searchText, ignoreCase = true) }
+    val filteredUsers = users.filter { it.username.value.contains(searchText, ignoreCase = true) }
 
     FilterableListView(
         items = filteredUsers,
         searchText = searchText,
         onSearchTextChanged = onSearchTextChanged,
         searchPlaceholder = "Search users...",
-        keySelector = { user: User -> user.id },
+        keySelector = { user: com.test.testing.discord.domain.models.DomainUser -> user.id.value },
         itemContent = { user ->
             ListItem(
-                headlineContent = { Text(user.duser.username) },
-                supportingContent = { if (user.id == currentUser?.id) Text("You") },
+                headlineContent = { Text(user.username.value) },
+                supportingContent = { if (user.id.value == currentUser?.id?.value) Text("You") },
                 leadingContent = {
                     Box(
                         modifier =
@@ -409,17 +427,17 @@ fun UserListView(
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                     ) {
                         AsyncImage(
-                            model = user.duser.avatarUrl,
-                            contentDescription = user.duser.username,
+                            model = user.avatarUrl,
+                            contentDescription = user.username.value,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
                 },
                 trailingContent = {
-                    if (user.id != currentUser?.id) {
-                        val isBlocked = blockedUsers.contains(user.id)
+                    if (user.id.value != currentUser?.id?.value) {
+                        val isBlocked = blockedUsers.contains(user.id.value)
                         Button(
-                            onClick = { onToggleBlock(user.id) },
+                            onClick = { onToggleBlock(user.id.value) },
                             colors =
                                 ButtonDefaults.buttonColors(
                                     containerColor =

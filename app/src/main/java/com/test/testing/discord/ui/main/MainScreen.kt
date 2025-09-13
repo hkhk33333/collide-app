@@ -109,12 +109,12 @@ fun MainScreen(locationManager: LocationManager) {
                     composable(Screen.Map.route) { MapScreen(mapViewModel, locationManager) }
                     composable(Screen.Settings.route) {
                         val currentMapState = mapState
-                        val users =
+                        val allUsers =
                             when (currentMapState) {
-                                is com.test.testing.discord.ui.map.MapScreenState.Content -> currentMapState.users
+                                is com.test.testing.discord.ui.map.MapScreenState.Content -> currentMapState.allUsers
                                 else -> emptyList()
                             }
-                        SettingsScreen(userViewModel, users, locationManager)
+                        SettingsScreen(userViewModel, allUsers, locationManager)
                     }
                 }
             }

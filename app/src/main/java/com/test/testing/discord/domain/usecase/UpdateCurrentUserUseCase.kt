@@ -1,9 +1,9 @@
 package com.test.testing.discord.domain.usecase
 
+import com.test.testing.discord.domain.models.DomainUser
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.Result
-import com.test.testing.discord.models.User
 
 /**
  * Use case for updating the current user's profile data
@@ -15,7 +15,7 @@ import com.test.testing.discord.models.User
  * - Error handling for update failures
  */
 class UpdateCurrentUserUseCase(
-    private val repository: UserRepository,
+    private val repository: com.test.testing.discord.domain.repository.UserRepository,
 ) {
     /**
      * Updates the current user's profile information
@@ -26,10 +26,10 @@ class UpdateCurrentUserUseCase(
      */
     suspend operator fun invoke(
         token: String,
-        user: User,
+        user: DomainUser,
     ): Result<Unit> {
         // Domain layer validation
-        if (token.isBlank() || user.id.isBlank()) {
+        if (token.isBlank() || user.id.value.isBlank()) {
             val errorMessage =
                 when {
                     token.isBlank() -> "Token cannot be blank"

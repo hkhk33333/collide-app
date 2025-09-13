@@ -30,7 +30,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import com.test.testing.BuildConfig
 import com.test.testing.discord.location.LocationManager
-import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.BorderedCircleCropTransformation
 import com.test.testing.discord.ui.CoilImageLoader
 import com.test.testing.discord.viewmodels.MapViewModel
@@ -189,11 +188,11 @@ private fun SuccessContent(
         ) {
             state.users.forEach { user ->
                 user.location?.let { location ->
-                    val position = LatLng(location.latitude, location.longitude)
+                    val position = LatLng(location.latitude.value, location.longitude.value)
                     UserMarker(
                         user = user,
                         position = position,
-                        onClick = { mapViewModel.processIntent(MapIntent.UserSelected(user.id)) },
+                        onClick = { mapViewModel.processIntent(MapIntent.UserSelected(user.id.value)) },
                     )
                 }
             }
@@ -244,7 +243,7 @@ private fun RefreshButtonOverlay(
 
 @Composable
 fun UserMarker(
-    user: User,
+    user: com.test.testing.discord.domain.models.DomainUser,
     position: LatLng,
     onClick: () -> Unit = {},
 ) {
@@ -252,13 +251,13 @@ fun UserMarker(
     var bitmapDescriptor by remember { mutableStateOf<BitmapDescriptor?>(null) }
 
     // Load and process user avatar
-    LaunchedEffect(user.duser.avatarUrl) {
+    LaunchedEffect(user.avatarUrl) {
         try {
             val imageLoader = CoilImageLoader.getInstance(context)
             val request =
                 ImageRequest
                     .Builder(context)
-                    .data(user.duser.avatarUrl)
+                    .data(user.avatarUrl)
                     .transformations(BorderedCircleCropTransformation())
                     .size(96, 96) // Smaller size for map markers
                     .allowHardware(false)
@@ -284,8 +283,8 @@ fun UserMarker(
 
     Marker(
         state = markerState,
-        title = user.duser.username,
-        snippet = "Accuracy: ${user.location?.accuracy?.roundToInt()}m",
+        title = user.username.value,
+        snippet = "Accuracy: ${user.location?.accuracy?.meters?.roundToInt()}m",
         icon = bitmapDescriptor, // Use custom avatar or default marker
         anchor = Offset(0.5f, 0.45f), // Slightly above center to account for shadow
         onClick = {

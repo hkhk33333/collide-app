@@ -1,9 +1,9 @@
 package com.test.testing.discord.domain.usecase
 
+import com.test.testing.discord.domain.models.DomainUser
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.Result
-import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.flow
  * - Current user data retrieval and error handling
  */
 class GetCurrentUserUseCase(
-    private val repository: UserRepository,
+    private val repository: com.test.testing.discord.domain.repository.UserRepository,
 ) {
     /**
      * Retrieves the current authenticated user
@@ -28,7 +28,7 @@ class GetCurrentUserUseCase(
     operator fun invoke(
         token: String,
         forceRefresh: Boolean = false,
-    ): Flow<Result<User?>> =
+    ): Flow<Result<DomainUser?>> =
         flow {
             // Domain layer validation
             if (token.isBlank()) {

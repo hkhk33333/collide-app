@@ -45,7 +45,7 @@ class UserViewModel
         val effects = _effects.receiveAsFlow()
 
         // Computed properties for backward compatibility
-        val currentUser: StateFlow<User?> =
+        val currentUser: StateFlow<com.test.testing.discord.domain.models.DomainUser?> =
             state
                 .map { state ->
                     when (state) {
@@ -54,7 +54,7 @@ class UserViewModel
                     }
                 }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-        val guilds: StateFlow<List<Guild>> =
+        val guilds: StateFlow<List<com.test.testing.discord.domain.models.DomainGuild>> =
             state
                 .map { state ->
                     when (state) {
@@ -160,17 +160,6 @@ class UserViewModel
                 }
             }
 
-        // Legacy method for backward compatibility during migration
-        fun onEvent(event: com.test.testing.discord.ui.UiEvent) {
-            when (event) {
-                is com.test.testing.discord.ui.UiEvent.UpdateUser -> processIntent(UserIntent.UpdateUser(event.user))
-                is com.test.testing.discord.ui.UiEvent.DeleteUserData -> processIntent(UserIntent.DeleteUserData)
-                else -> {
-                    // Handle other events if needed
-                }
-            }
-        }
-
         private fun loadInitialData() {
             if (token == null) {
                 _state.value =
@@ -185,8 +174,8 @@ class UserViewModel
 
             viewModelScope.launch(exceptionHandler) {
                 try {
-                    var currentUserData: User? = null
-                    var guildsData: List<Guild> = emptyList()
+                    var currentUserData: com.test.testing.discord.domain.models.DomainUser? = null
+                    var guildsData: List<com.test.testing.discord.domain.models.DomainGuild> = emptyList()
 
                     // Load current user
                     getCurrentUserUseCase(token!!).collect { result ->
@@ -234,7 +223,7 @@ class UserViewModel
         }
 
         fun updateCurrentUser(
-            user: User,
+            user: com.test.testing.discord.domain.models.DomainUser,
             onComplete: (Result<Unit>) -> Unit = {},
         ) {
             if (token == null) {

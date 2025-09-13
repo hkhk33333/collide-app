@@ -1,12 +1,13 @@
 package com.test.testing.discord.ui.settings
 
 import android.os.Parcelable
+import com.test.testing.discord.domain.models.DomainGuild
+import com.test.testing.discord.domain.models.DomainUser
 import com.test.testing.discord.models.ErrorType
-import com.test.testing.discord.models.Guild
-import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.UiAction
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 
 /**
  * Immutable UI state for the user/settings screen following MVI pattern
@@ -22,8 +23,8 @@ sealed class UserScreenState : Parcelable {
 
     @Parcelize
     data class Content(
-        val currentUser: User? = null,
-        val guilds: List<Guild> = emptyList(),
+        val currentUser: @RawValue DomainUser? = null,
+        val guilds: @RawValue List<DomainGuild> = emptyList(),
         val lastUpdated: Long = System.currentTimeMillis(),
     ) : UserScreenState() {
         @IgnoredOnParcel
@@ -52,7 +53,7 @@ sealed class UserIntent {
     object LoadData : UserIntent()
 
     data class UpdateUser(
-        val user: User,
+        val user: DomainUser,
     ) : UserIntent()
 
     object DeleteUserData : UserIntent()

@@ -1,8 +1,8 @@
 package com.test.testing.discord.domain.usecase
 
+import com.test.testing.discord.domain.models.DomainGuild
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.ErrorType
-import com.test.testing.discord.models.Guild
 import com.test.testing.discord.models.Result
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flow
  * - Error handling for guild operations
  */
 class GetGuildsUseCase(
-    private val repository: UserRepository,
+    private val repository: com.test.testing.discord.domain.repository.UserRepository,
 ) {
     /**
      * Retrieves Discord guilds/servers for the authenticated user
@@ -29,7 +29,7 @@ class GetGuildsUseCase(
     operator fun invoke(
         token: String,
         forceRefresh: Boolean = false,
-    ): Flow<Result<List<Guild>>> =
+    ): Flow<Result<List<DomainGuild>>> =
         flow {
             // Domain layer validation
             if (token.isBlank()) {

@@ -2,10 +2,10 @@ package com.test.testing.discord.ui.map
 
 import android.os.Parcelable
 import com.test.testing.discord.models.ErrorType
-import com.test.testing.discord.models.User
 import com.test.testing.discord.ui.UiAction
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
+import kotlinx.parcelize.RawValue
 
 /**
  * Immutable UI state for the map screen following MVI pattern
@@ -16,7 +16,8 @@ sealed class MapScreenState : Parcelable {
 
     @Parcelize
     data class Content(
-        val users: List<User> = emptyList(),
+        val users: @RawValue List<com.test.testing.discord.domain.models.DomainUser> = emptyList(),
+        val allUsers: @RawValue List<com.test.testing.discord.domain.models.DomainUser> = emptyList(),
         val selectedUserId: String? = null,
         val isLocationEnabled: Boolean = false,
         val isRefreshing: Boolean = false,

@@ -3,7 +3,7 @@ package com.test.testing.discord.models
 // Domain events for decoupling layers
 sealed class DomainEvent {
     data class UserDataUpdated(
-        val user: User,
+        val user: com.test.testing.discord.domain.models.DomainUser,
     ) : DomainEvent()
 
     data class UserLocationUpdated(

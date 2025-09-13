@@ -9,7 +9,6 @@ import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.cache.CacheManager
 import com.test.testing.discord.domain.usecase.GetUsersUseCase
 import com.test.testing.discord.models.*
-import com.test.testing.discord.models.PrivacySettings
 import com.test.testing.discord.ui.map.MapEffect
 import com.test.testing.discord.ui.map.MapIntent
 import com.test.testing.discord.ui.map.MapScreenState
@@ -47,11 +46,21 @@ class MapViewModel
         private val _effects = Channel<MapEffect>()
         val effects = _effects.receiveAsFlow()
 
-        val users: StateFlow<List<User>> =
+        val users: StateFlow<List<com.test.testing.discord.domain.models.DomainUser>> =
             state
                 .map { state ->
                     when (state) {
                         is MapScreenState.Content -> state.users
+                        else -> emptyList()
+                    }
+                }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+        // Unfiltered users list for settings - includes blocked users so they can be unblocked
+        val allUsers: StateFlow<List<com.test.testing.discord.domain.models.DomainUser>> =
+            state
+                .map { state ->
+                    when (state) {
+                        is MapScreenState.Content -> state.allUsers
                         else -> emptyList()
                     }
                 }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -65,34 +74,36 @@ class MapViewModel
                     ?.let { "Bearer $it" }
 
         // Store current user's privacy settings for synchronous access
-        private var currentUserPrivacySettings: PrivacySettings? = null
+        private var currentUserPrivacySettings: com.test.testing.discord.domain.models.UserPrivacySettings? = null
 
         /**
          * Updates stored privacy settings when user data changes
          */
-        private fun updatePrivacySettings(user: User?) {
-            currentUserPrivacySettings = user?.privacy
+        private fun updatePrivacySettings(user: com.test.testing.discord.domain.models.DomainUser?) {
+            currentUserPrivacySettings = user?.privacySettings
         }
 
         /**
          * Filters users based on current user's privacy settings
          */
-        private fun filterUsersByPrivacySettings(users: List<User>): List<User> {
+        private fun filterUsersByPrivacySettings(
+            users: List<com.test.testing.discord.domain.models.DomainUser>,
+        ): List<com.test.testing.discord.domain.models.DomainUser> {
             val privacySettings = currentUserPrivacySettings
             if (privacySettings == null) {
                 // If no privacy settings available, return all users (fallback)
                 return users
             }
 
-            val enabledGuilds = privacySettings.enabledGuilds.toSet()
-            val blockedUserIds = privacySettings.blockedUsers.toSet()
+            val enabledGuilds = privacySettings.enabledGuilds.map { it.value }.toSet()
+            val blockedUserIds = privacySettings.blockedUsers.map { it.value }.toSet()
 
             return users.filter { user ->
                 // Don't filter out the current user (we don't have access to current user ID here)
                 // In a real implementation, we'd compare user IDs
 
                 // Filter out blocked users
-                if (blockedUserIds.contains(user.id)) {
+                if (blockedUserIds.contains(user.id.value)) {
                     return@filter false
                 }
 
@@ -118,8 +129,45 @@ class MapViewModel
             // Initialize privacy settings from cache
             viewModelScope.launch {
                 try {
-                    val currentUser = cacheManager.get<User>(CacheManager.CacheKey.CURRENT_USER)
-                    updatePrivacySettings(currentUser)
+                    val cachedUser = cacheManager.get<User>(CacheManager.CacheKey.CURRENT_USER)
+                    if (cachedUser != null) {
+                        // Convert User to DomainUser for updatePrivacySettings
+                        // In a real implementation, we'd use a mapper here
+                        // For now, create a basic DomainUser from cached data
+                        val domainUser =
+                            com.test.testing.discord.domain.models.DomainUser(
+                                id =
+                                    com.test.testing.discord.domain.models
+                                        .UserId(cachedUser.id),
+                                username =
+                                    com.test.testing.discord.domain.models
+                                        .Username(cachedUser.duser.username),
+                                avatarUrl = cachedUser.duser.avatar ?: "",
+                                location = null, // Not available in cache
+                                isOnline = true,
+                                lastSeen = java.time.Instant.now(),
+                                privacySettings =
+                                    com.test.testing.discord.domain.models.UserPrivacySettings(
+                                        enabledGuilds =
+                                            cachedUser.privacy.enabledGuilds
+                                                .map {
+                                                    com.test.testing.discord.domain.models.GuildId(
+                                                        it,
+                                                    )
+                                                }.toSet(),
+                                        blockedUsers =
+                                            cachedUser.privacy.blockedUsers
+                                                .map {
+                                                    com.test.testing.discord.domain.models.UserId(
+                                                        it,
+                                                    )
+                                                }.toSet(),
+                                        locationSharingEnabled = true,
+                                        nearbyNotificationsEnabled = cachedUser.receiveNearbyNotifications ?: true,
+                                    ),
+                            )
+                        updatePrivacySettings(domainUser)
+                    }
                 } catch (e: Exception) {
                     if (BuildConfig.DEBUG) {
                         android.util.Log.w("MapViewModel", "Failed to load privacy settings from cache", e)
@@ -135,6 +183,20 @@ class MapViewModel
             val currentState = _state.value
             val newState = reduce(currentState, intent)
             _state.value = newState
+
+            // Handle side effects after state update
+            when (intent) {
+                is MapIntent.RefreshUsers -> {
+                    refreshUsers()
+                }
+
+                is MapIntent.LoadUsers -> {
+                    loadUsers()
+                }
+
+                // Other intents don't need side effects
+                else -> {}
+            }
         }
 
         // Reducer function for state transformations
@@ -215,6 +277,7 @@ class MapViewModel
                             _state.value =
                                 MapScreenState.Content(
                                     users = filteredUsers,
+                                    allUsers = result.data, // Store unfiltered list for settings
                                 )
                             eventBus.publish(DomainEvent.DataRefreshCompleted(true))
                         }
@@ -302,7 +365,7 @@ class MapViewModel
             }
         }
 
-        private fun handleRefreshResult(result: Result<List<com.test.testing.discord.models.User>>) {
+        private fun handleRefreshResult(result: Result<List<com.test.testing.discord.domain.models.DomainUser>>) {
             if (BuildConfig.DEBUG) {
                 android.util.Log.d("MapViewModel", "Received result: $result")
             }
@@ -316,6 +379,7 @@ class MapViewModel
                         }
                         MapScreenState.Content(
                             users = filteredUsers,
+                            allUsers = result.data, // Store unfiltered list for settings
                             isRefreshing = false,
                         )
                     }

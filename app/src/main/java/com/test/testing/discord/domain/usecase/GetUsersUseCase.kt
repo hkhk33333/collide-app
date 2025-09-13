@@ -1,9 +1,9 @@
 package com.test.testing.discord.domain.usecase
 
+import com.test.testing.discord.domain.models.DomainUser
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.models.ErrorType
 import com.test.testing.discord.models.Result
-import com.test.testing.discord.models.User
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.flow
  * - Domain layer business logic
  */
 class GetUsersUseCase(
-    private val repository: UserRepository,
+    private val repository: com.test.testing.discord.domain.repository.UserRepository,
 ) {
     /**
      * Retrieves users from the Discord API
@@ -29,7 +29,7 @@ class GetUsersUseCase(
     operator fun invoke(
         token: String,
         forceRefresh: Boolean = false,
-    ): Flow<Result<List<User>>> =
+    ): Flow<Result<List<DomainUser>>> =
         flow {
             // Domain layer validation
             if (token.isBlank()) {
