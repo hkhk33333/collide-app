@@ -2,18 +2,23 @@ package com.test.testing.discord.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.models.DomainEvent
 import com.test.testing.discord.models.DomainEventBus
 import com.test.testing.discord.models.DomainEventSubscriber
+import com.test.testing.discord.ui.login.AuthEffect
+import com.test.testing.discord.ui.login.AuthIntent
 import com.test.testing.discord.ui.login.AuthScreenUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,19 +36,26 @@ class AuthViewModel
     @Inject
     constructor(
         application: Application,
+        private val savedStateHandle: SavedStateHandle,
         private val authManager: AuthManager,
         private val eventBus: DomainEventBus,
     ) : AndroidViewModel(application),
         DomainEventSubscriber {
-        private val _uiState =
-            MutableStateFlow<AuthScreenUiState>(
-                if (authManager.isAuthenticated.value) {
-                    AuthScreenUiState.Authenticated()
-                } else {
-                    AuthScreenUiState.Unauthenticated()
-                },
+        companion object {
+            private const val KEY_AUTH_STATE = "auth_screen_state"
+        }
+
+        private val _state =
+            MutableStateFlow(
+                savedStateHandle.get<AuthScreenUiState>(KEY_AUTH_STATE) ?: AuthScreenUiState.Initial,
             )
-        val uiState: StateFlow<AuthScreenUiState> = _uiState.asStateFlow()
+        val state: StateFlow<AuthScreenUiState> = _state.asStateFlow()
+
+        private val _effects = Channel<AuthEffect>()
+        val effects = _effects.receiveAsFlow()
+
+        // Legacy uiState for backward compatibility
+        val uiState: StateFlow<AuthScreenUiState> = _state.asStateFlow()
 
         // Computed properties for backward compatibility
         val isAuthenticated: StateFlow<Boolean> =
@@ -58,10 +70,24 @@ class AuthViewModel
 
         init {
             eventBus.subscribe(this)
-            observeAuthState()
+            // Auto-save state whenever it changes
+            viewModelScope.launch {
+                state.collect { currentState ->
+                    savedStateHandle[KEY_AUTH_STATE] = currentState
+                }
+            }
+            initializeAuthState()
         }
 
-        private fun observeAuthState() {
+        private fun initializeAuthState() {
+            val initialState =
+                when {
+                    authManager.isAuthenticated.value -> AuthScreenUiState.Authenticated()
+                    else -> AuthScreenUiState.Unauthenticated()
+                }
+            _state.value = initialState
+
+            // Observe auth state changes
             viewModelScope.launch {
                 authManager.isAuthenticated.collect { authenticated ->
                     val newState =
@@ -70,80 +96,144 @@ class AuthViewModel
                         } else {
                             AuthScreenUiState.Unauthenticated()
                         }
-                    _uiState.value = newState
-                    if (!authenticated) {
+                    _state.value = newState
+
+                    // Send effects based on auth state changes
+                    if (authenticated) {
+                        sendEffect(AuthEffect.LoginSuccess)
+                    } else {
+                        sendEffect(AuthEffect.LogoutSuccess)
                         eventBus.publish(DomainEvent.UserLoggedOut)
                     }
                 }
             }
         }
 
-        // Handle UI events
+        // MVI pattern implementation
+        fun processIntent(intent: AuthIntent) {
+            when (intent) {
+                is AuthIntent.Login -> {
+                    val newState = reduce(_state.value, intent)
+                    _state.value = newState
+                    performLogin(intent.context)
+                }
+
+                is AuthIntent.Logout -> {
+                    val newState = reduce(_state.value, intent)
+                    _state.value = newState
+                    performLogout()
+                }
+
+                is AuthIntent.ClearError -> {
+                    val newState = reduce(_state.value, intent)
+                    _state.value = newState
+                }
+
+                is AuthIntent.CheckAuthStatus -> {
+                    // Just update the state based on current auth status
+                    initializeAuthState()
+                }
+            }
+        }
+
+        private fun reduce(
+            state: AuthScreenUiState,
+            intent: AuthIntent,
+        ): AuthScreenUiState =
+            when (intent) {
+                is AuthIntent.Login -> {
+                    AuthScreenUiState.Loading()
+                }
+
+                is AuthIntent.Logout -> {
+                    AuthScreenUiState.Loading()
+                }
+
+                is AuthIntent.ClearError -> {
+                    if (state is AuthScreenUiState.Error) {
+                        AuthScreenUiState.Unauthenticated()
+                    } else {
+                        state
+                    }
+                }
+
+                is AuthIntent.CheckAuthStatus -> {
+                    state
+                }
+            }
+
+        private fun performLogin(context: android.content.Context) {
+            try {
+                authManager.login(context)
+                // Auth state change will be observed and update the state accordingly
+            } catch (e: Exception) {
+                _state.value =
+                    AuthScreenUiState.Error(
+                        message = "Failed to start login: ${e.message}",
+                        canRetry = true,
+                    )
+            }
+        }
+
+        private fun performLogout() {
+            authManager.logout {
+                // Auth state change will be observed and update the state accordingly
+                // Clear any error state
+                val currentState = _state.value
+                when (currentState) {
+                    is AuthScreenUiState.Error -> {
+                        _state.value = AuthScreenUiState.Unauthenticated()
+                    }
+
+                    else -> {
+                        // State will be updated by initializeAuthState when authManager.isAuthenticated changes
+                    }
+                }
+            }
+        }
+
+        // Legacy methods for backward compatibility
         fun onEvent(event: com.test.testing.discord.ui.UiEvent) {
             when (event) {
-                is com.test.testing.discord.ui.UiEvent.Login -> login()
-                is com.test.testing.discord.ui.UiEvent.Logout -> logout()
+                is com.test.testing.discord.ui.UiEvent.Login -> {
+                    // This method needs context, so we can't use it directly
+                    // The UI should use processIntent instead
+                }
+
+                is com.test.testing.discord.ui.UiEvent.Logout -> {
+                    processIntent(AuthIntent.Logout)
+                }
+
                 else -> {
                     // Handle other events if needed
                 }
-
             }
         }
 
         fun login() {
-            val currentState = _uiState.value
-            when (currentState) {
-                is AuthScreenUiState.Authenticated -> {
-                    _uiState.value = currentState.copy(isLoading = true)
-                }
-
-                is AuthScreenUiState.Unauthenticated -> {
-                    _uiState.value = currentState.copy(isLoading = true)
-                }
-
-                else -> {
-                    _uiState.value = AuthScreenUiState.Loading()
-                }
-            }
-            // AuthManager handles the actual login flow - context is passed from UI
-            // The auth state change will be observed and update the UiState accordingly
+            // Legacy method - context should be passed via intent
+            // This is kept for backward compatibility but should be replaced
         }
 
         fun logout(onComplete: (() -> Unit)? = null) {
-            val currentState = _uiState.value
-            when (currentState) {
-                is AuthScreenUiState.Authenticated -> {
-                    _uiState.value = currentState.copy(isLoading = true)
-                }
-                is AuthScreenUiState.Unauthenticated -> {
-                    _uiState.value = currentState.copy(isLoading = true)
-                }
-                else -> {
-                    _uiState.value = AuthScreenUiState.Loading()
-                }
-            }
-
-            authManager.logout {
-                // The auth state change will be observed and update the UiState accordingly
-                // Clear any error state
-                val currentUiState = _uiState.value
-                when (currentUiState) {
-                    is AuthScreenUiState.Error -> {
-                        _uiState.value = AuthScreenUiState.Unauthenticated()
-                    }
-
-                    else -> {
-                        // UiState will be updated by observeAuthState when authManager.isAuthenticated changes
+            processIntent(AuthIntent.Logout)
+            // Call onComplete after logout completes
+            viewModelScope.launch {
+                effects.collect { effect ->
+                    if (effect is AuthEffect.LogoutSuccess) {
+                        onComplete?.invoke()
                     }
                 }
-                onComplete?.invoke()
             }
         }
 
         fun clearError() {
-            val currentState = _uiState.value
-            if (currentState is AuthScreenUiState.Error) {
-                _uiState.value = AuthScreenUiState.Unauthenticated()
+            processIntent(AuthIntent.ClearError)
+        }
+
+        private fun sendEffect(effect: AuthEffect) {
+            viewModelScope.launch {
+                _effects.send(effect)
             }
         }
 
@@ -151,11 +241,11 @@ class AuthViewModel
         override fun onEvent(event: DomainEvent) {
             when (event) {
                 is DomainEvent.UserLoggedOut -> {
-                    _uiState.value = AuthScreenUiState.Unauthenticated()
+                    _state.value = AuthScreenUiState.Unauthenticated()
                 }
 
                 is DomainEvent.DataCleared -> {
-                    _uiState.value = AuthScreenUiState.Unauthenticated()
+                    _state.value = AuthScreenUiState.Unauthenticated()
                 }
 
                 else -> {

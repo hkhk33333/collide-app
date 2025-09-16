@@ -5,6 +5,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.test.testing.discord.ui.login.AuthIntent
 import com.test.testing.discord.ui.login.AuthScreenUiState
 import com.test.testing.discord.ui.login.LoginScreen
 import com.test.testing.discord.ui.main.MainScreen
@@ -26,9 +27,7 @@ fun DiscordApp() {
 
                 is AuthScreenUiState.Unauthenticated -> {
                     LoginScreen(onLoginClick = { activityContext ->
-                        authViewModel.onEvent(UiEvent.Login)
-                        // The AuthManager login will be triggered through the ViewModel
-                        authViewModel.login()
+                        authViewModel.processIntent(AuthIntent.Login(activityContext))
                     })
                 }
 
@@ -42,7 +41,7 @@ fun DiscordApp() {
                     ErrorScreen(
                         message = errorState.message,
                         canRetry = errorState.canRetry,
-                        onRetry = { authViewModel.clearError() },
+                        onRetry = { authViewModel.processIntent(AuthIntent.ClearError) },
                     )
                 }
 
