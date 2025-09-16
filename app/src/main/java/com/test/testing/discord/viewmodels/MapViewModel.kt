@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.test.testing.BuildConfig
-import com.test.testing.discord.auth.AuthManager
+import com.test.testing.discord.auth.TokenProvider
 import com.test.testing.discord.cache.CacheManager
 import com.test.testing.discord.domain.usecase.GetUsersUseCase
 import com.test.testing.discord.models.*
@@ -28,7 +28,7 @@ class MapViewModel
         application: Application,
         private val savedStateHandle: SavedStateHandle,
         private val getUsersUseCase: GetUsersUseCase,
-        private val authManager: AuthManager,
+        private val tokenProvider: TokenProvider,
         private val cacheManager: CacheManager,
         private val eventBus: DomainEventBus,
     ) : AndroidViewModel(application),
@@ -69,9 +69,7 @@ class MapViewModel
         private val refreshInterval = 30000L // 30 seconds
 
         private val token: String?
-            get() =
-                authManager.token.value
-                    ?.let { "Bearer $it" }
+            get() = tokenProvider.token
 
         // Store current user's privacy settings for synchronous access
         private var currentUserPrivacySettings: com.test.testing.discord.domain.models.UserPrivacySettings? = null

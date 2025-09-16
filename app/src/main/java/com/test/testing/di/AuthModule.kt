@@ -3,6 +3,7 @@ package com.test.testing.di
 import com.test.testing.discord.api.ApiService
 import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.auth.SecureTokenStorage
+import com.test.testing.discord.auth.TokenProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,4 +22,8 @@ object AuthModule {
         AuthManager(secureTokenStorage).apply {
             setApiService(apiService)
         }
+
+    @Provides
+    @Singleton
+    fun provideTokenProvider(authManager: AuthManager): TokenProvider = authManager
 }

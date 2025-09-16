@@ -1,5 +1,6 @@
 package com.test.testing.di
 
+import com.test.testing.discord.auth.AuthManager
 import com.test.testing.discord.domain.repository.UserRepository
 import com.test.testing.discord.domain.usecase.*
 import dagger.Module
@@ -30,4 +31,8 @@ object UseCaseModule {
     @Provides
     @Singleton
     fun provideDeleteUserDataUseCase(repository: UserRepository): DeleteUserDataUseCase = DeleteUserDataUseCase(repository)
+
+    @Provides
+    @Singleton
+    fun provideLogoutUseCase(authManager: AuthManager): LogoutUseCase = LogoutUseCase(authManager)
 }

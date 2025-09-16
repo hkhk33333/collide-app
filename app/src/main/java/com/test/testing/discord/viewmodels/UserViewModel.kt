@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.test.testing.discord.auth.AuthManager
+import com.test.testing.discord.auth.TokenProvider
 import com.test.testing.discord.domain.usecase.*
 import com.test.testing.discord.models.*
 import com.test.testing.discord.ui.settings.UserEffect
@@ -27,8 +27,9 @@ class UserViewModel
         private val getGuildsUseCase: GetGuildsUseCase,
         private val updateUserUseCase: UpdateCurrentUserUseCase,
         private val deleteUserDataUseCase: DeleteUserDataUseCase,
-        private val authManager: AuthManager,
+        private val tokenProvider: TokenProvider,
         private val eventBus: DomainEventBus,
+        private val logoutUseCase: LogoutUseCase,
     ) : AndroidViewModel(application),
         DomainEventSubscriber {
         companion object {
@@ -69,9 +70,7 @@ class UserViewModel
                 .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
         private val token: String?
-            get() =
-                authManager.token.value
-                    ?.let { "Bearer $it" }
+            get() = tokenProvider.token
 
         private val exceptionHandler =
             CoroutineExceptionHandler { _, throwable ->
@@ -325,8 +324,8 @@ class UserViewModel
             }
         }
 
-        fun logout(onComplete: (() -> Unit)? = null) {
-            authManager.logout(onComplete ?: {})
+        fun logout(onComplete: () -> Unit = {}) {
+            logoutUseCase.execute(onComplete)
         }
 
         fun clearData() {

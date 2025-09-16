@@ -2,7 +2,7 @@ package com.test.testing.discord.data.repository
 
 import android.location.Location
 import android.util.Log
-import com.test.testing.discord.auth.AuthManager
+import com.test.testing.discord.auth.TokenProvider
 import com.test.testing.discord.domain.repository.LocationRepository
 import com.test.testing.discord.location.LocationManager
 import com.test.testing.discord.models.*
@@ -17,12 +17,10 @@ class LocationRepositoryImpl(
     private val apiService: com.test.testing.discord.api.ApiService,
     private val locationManager: LocationManager,
     private val networkResilience: NetworkResilience,
-    private val authManager: AuthManager,
+    private val tokenProvider: TokenProvider,
 ) : LocationRepository {
     private val token: String?
-        get() =
-            authManager.token.value
-                ?.let { "Bearer $it" }
+        get() = tokenProvider.token
 
     override fun getCurrentLocation(): Flow<Result<Location?>> =
         locationManager.locationUpdates

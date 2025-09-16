@@ -24,7 +24,7 @@ class AuthManager
     @Inject
     constructor(
         private val secureTokenStorage: SecureTokenStorage,
-    ) {
+    ) : TokenProvider {
         private var apiService: ApiService? = null
         private var codeVerifier: String? = null
 
@@ -33,7 +33,13 @@ class AuthManager
         val isAuthenticated = _isAuthenticated.asStateFlow()
 
         private val _token = MutableStateFlow<String?>(null)
-        val token = _token.asStateFlow()
+        val tokenFlow = _token.asStateFlow()
+
+        override val token: String?
+            get() = _token.value?.let { "Bearer $it" }
+
+        override val rawToken: String?
+            get() = _token.value
 
         // Holds the complete token information
         private var currentToken: StoredToken? = null

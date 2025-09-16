@@ -1,7 +1,7 @@
 package com.test.testing.di
 
 import com.test.testing.discord.api.ApiService
-import com.test.testing.discord.auth.AuthManager
+import com.test.testing.discord.auth.TokenProvider
 import com.test.testing.discord.cache.CacheManager
 import com.test.testing.discord.data.datasources.UserLocalDataSource
 import com.test.testing.discord.data.datasources.UserRemoteDataSource
@@ -70,6 +70,6 @@ object RepositoryModule {
         apiService: com.test.testing.discord.api.ApiService,
         locationManager: LocationManager,
         networkResilience: NetworkResilience,
-        authManager: AuthManager,
-    ): LocationRepository = LocationRepositoryImpl(apiService, locationManager, networkResilience, authManager)
+        tokenProvider: TokenProvider,
+    ): LocationRepository = LocationRepositoryImpl(apiService, locationManager, networkResilience, tokenProvider)
 }
