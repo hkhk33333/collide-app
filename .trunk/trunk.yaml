@@ -46,8 +46,8 @@ lint:
     - shellcheck@0.11.0
     - shfmt@3.6.0
     - taplo@0.10.0
-    - trufflehog-git@3.90.6 # For the git-hooks
-    - trufflehog@3.90.6
+    - trufflehog-git@3.90.8 # For the git-hooks
+    - trufflehog@3.90.8
     - yamllint@1.37.1
     - detekt-gradle@SYSTEM
     - android-lint
