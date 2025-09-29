@@ -30,6 +30,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".discord.auth.DiscordLoginActivity"
+            android:exported="false"
+            android:label="Discord Login"
+            android:theme="@style/Theme.Testing" />
+        <activity
+            android:name=".discord.DiscordMainActivity"
+            android:exported="false"
+            android:label="Discord"
+            android:theme="@style/Theme.Testing" />
         
         <service
             android:name=".LocationService"

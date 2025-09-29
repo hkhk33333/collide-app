@@ -61,6 +61,7 @@ import com.test.testing.api.FirebaseLocationRepository
 import com.test.testing.api.LocationModel
 import com.test.testing.auth.AuthNavigation
 import com.test.testing.auth.AuthViewModel
+import com.test.testing.discord.auth.DiscordLoginActivity
 import com.test.testing.friends.AddFriendScreen
 import com.test.testing.friends.FriendListScreen
 import com.test.testing.friends.FriendRepository
@@ -109,6 +110,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        if (FeatureFlags.USE_DISCORD_SYSTEM) {
+            // Route to Discord-gated placeholder and finish this activity to prevent back stack mixing
+            startActivity(Intent(this, DiscordLoginActivity::class.java))
+            finish()
+            return
+        }
 
         enableEdgeToEdge()
         setContent {
