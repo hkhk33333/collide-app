@@ -54,22 +54,56 @@ lint:
   definitions:
     - name: android-lint
       files: [android-source]
+      # Files that invalidate lint cache when changed (Gradle/wrapper, lint configs & baselines)
+      # Note: cache_results is currently false (see command block). These entries are
+      # retained to future‑proof caching and document non‑target inputs that influence
+      # Android Lint output. If caching is re‑enabled, these ensure proper invalidation.
       affects_cache:
         - build.gradle
         - build.gradle.kts
         - app/build.gradle
         - app/build.gradle.kts
+        # Needed for GradleDependency/NewerVersionAvailable checks
+        - gradle/libs.versions.toml
         - settings.gradle
         - settings.gradle.kts
         - gradle.properties
+        - gradle/wrapper/gradle-wrapper.properties
+        - lint.xml
+        - app/lint.xml
+        - lint-baseline.xml
+        - app/lint-baseline.xml
       commands:
         - name: lint
-          run: sh -c './gradlew lint && cp app/build/reports/lint-results-debug.sarif ${tmpfile}'
+          # Run Gradle lint and forward the newest SARIF report to Trunk
+          # Note: cd into ${workspace} so ./gradlew resolves when Trunk runs from a temp CWD
+          run: |
+            sh -c '
+              cd ${workspace} && \
+              ./gradlew lint && \
+              SARIF=$(ls -t app/build/reports/lint-results*.sarif 2>/dev/null | head -n1) && \
+              [ -n "$SARIF" ] && \
+              cp "$SARIF" ${tmpfile}
+            '
           output: sarif
           read_output_from: tmp_file
           success_codes: [0]
+          cache_results: false
+          # Caching note (verified):
+          # - Android Lint GradleDependency reads gradle/libs.versions.toml. This file is listed in
+          #   affects_cache to ensure correct cache invalidation.
+          # - In this repo, with cache_results enabled, Trunk's console has been inconsistent
+          #   even though SARIF contains the findings.
+          # Still we are not certain of the root cause of why it doesn't work when cache_results is true
+          # - For predictable console visibility, we keep caching OFF. If you re-enable it, run:
+          #   1) trunk cache clean
+          #   2) trunk check --all --show-existing --diff=full (review AUTOFIXES)
+          # Keep one process; Gradle parallelizes internally and this reduces daemon churn
+          max_concurrency: 1
           run_linter_from: workspace
           target: .
+      # Allow time for cold Gradle daemon / dependency resolution on CI
+      run_timeout: 10m
   # We vendor the Gradle wrapper script; it's third-party generated and not maintained here.
   # Ignore it for shellcheck to prevent false positives and noisy findings on non-project code.
   ignore:
