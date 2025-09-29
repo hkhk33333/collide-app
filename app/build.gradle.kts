@@ -2,7 +2,7 @@
  * Java Configuration
  * ==================
  * Toolchain: Java 21 LTS | Build JVM: Varies (17+ required by Gradle 9) | Target: Java 21
- * Configured: August 2025 (Gradle 9.0 upgrade)
+ * Configured: September 2025 (Gradle 9.1 upgrade)
  *
  * Definitions:
  * - Toolchain: JVM used to compile code (Java 21, auto-downloaded if missing)
