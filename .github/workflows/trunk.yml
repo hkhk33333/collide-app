@@ -26,6 +26,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # Adding this so that trunk can re-use gradle setup, and caches
+      # speeding up runs
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Run Trunk Check
         uses: trunk-io/trunk-action@v1
         with:
