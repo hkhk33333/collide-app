@@ -7,7 +7,7 @@ cli:
 plugins:
   sources:
     - id: trunk
-      ref: v1.7.2
+      ref: v1.7.4
       uri: https://github.com/trunk-io/plugins
 # Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
 runtimes:
@@ -36,18 +36,18 @@ lint:
     # See https://www.checkov.io/1.Welcome/What%20is%20Checkov.html#:~:text=policies.-,Supported%20IaC%20types,Docker,-Custom for more details.
     - checkov
   enabled:
-    - prettier@3.6.2
-    - actionlint@1.7.7
+    - prettier@3.7.4
+    - actionlint@1.7.9
     - git-diff-check
-    - gitleaks@8.28.0
-    - ktlint@1.7.1
-    - markdownlint@0.45.0
-    - osv-scanner@2.2.2
+    - gitleaks@8.30.0
+    - ktlint@1.8.0
+    - markdownlint@0.47.0
+    - osv-scanner@2.3.1
     - shellcheck@0.11.0
     - shfmt@3.6.0
     - taplo@0.10.0
-    - trufflehog-git@3.90.8 # For the git-hooks
-    - trufflehog@3.90.8
+    - trufflehog-git@3.92.3 # For the git-hooks
+    - trufflehog@3.92.3
     - yamllint@1.37.1
     - detekt-gradle@SYSTEM
     - android-lint
