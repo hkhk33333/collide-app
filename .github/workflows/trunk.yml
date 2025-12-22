@@ -29,5 +29,7 @@ jobs:
       - name: Run Trunk Check
         uses: trunk-io/trunk-action@v1
         with:
-          check-mode: ${{ github.event_name == 'push' && 'all' || null }}
+          # We don't set check-mode here because the default behavior for push events is to check
+          # all files, and in a pull request only the files that changed.
+          # Reference: https://github.com/trunk-io/trunk-action#:~:text=When%20triggered%20by%20a%20push%20this%20will%20be%20all%20files%20changed%20in%20that%20push.
           arguments: --github-annotate-new-only=false
