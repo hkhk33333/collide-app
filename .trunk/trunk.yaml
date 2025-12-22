@@ -76,6 +76,11 @@ lint:
     - linters: [shellcheck, shfmt]
       paths:
         - gradlew
+    # Ignore gitleaks for google-services.json because it contains firebase config
+    # which is standard to include in version control, no need of moving these keys.
+    - linters: [gitleaks]
+      paths:
+        - app/google-services.json
 actions:
   enabled:
     - commitizen
