@@ -26,6 +26,7 @@ fun AuthNavigation(
         AuthState.AUTHENTICATED -> {
             content()
         }
+
         else -> {
             when (currentScreen) {
                 AuthScreen.LOGIN -> {
@@ -34,6 +35,7 @@ fun AuthNavigation(
                         onNavigateToRegister = { currentScreen = AuthScreen.REGISTER },
                     )
                 }
+
                 AuthScreen.REGISTER -> {
                     RegisterScreen(
                         authViewModel = authViewModel,
