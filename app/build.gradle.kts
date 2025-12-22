@@ -38,6 +38,7 @@ plugins {
     id("com.google.gms.google-services")
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.google.android.libraries.mapsplatform.secrets.control.plugin)
 }
 
 java {
@@ -163,4 +164,15 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         sarif.required.set(true) // enables trunk to catch detekt issues when running trunk check
         txt.required.set(false)
     }
+}
+
+// Secrets plugin configuration for injecting API keys from local.properties
+// For CI/CD, uses local.defaults.properties when local.properties is not present
+secrets {
+    // Use local.properties for actual secrets (not in version control)
+    propertiesFileName = "local.properties"
+    // Fallback for CI/CD builds with safe placeholder values
+    defaultPropertiesFileName = "local.defaults.properties"
+    // Ignore SDK directory which is already handled by Gradle
+    ignoreList.add("sdk.*")
 }
