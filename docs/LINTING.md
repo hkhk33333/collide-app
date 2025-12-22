@@ -11,7 +11,8 @@
 
 Important: detekt runs through Gradle (`detekt-gradle`).
 That path requires a system JDK (Java 17+). Reason:
-Gradle 9 requires Java 17+ to run. Trunk’s optional Java runtime is not used by `detekt-gradle`.
+Gradle 9 requires Java 17+ to run. Trunk’s optional Java runtime is not used
+by `detekt-gradle`.
 If `JAVA_HOME` is missing in clean environments (e.g., containers),
 detekt will fail until a JDK is installed.
 See: [Gradle 9 Java compatibility](https://docs.gradle.org/9.0/userguide/compatibility.html#java)
@@ -34,7 +35,8 @@ See: [Gradle 9 Java compatibility](https://docs.gradle.org/9.0/userguide/compati
 
 **Speed**: Fast pre-commit formatting, comprehensive but slower analysis runs separately
 
-**Future**: detekt maintainers committed to adding ktlint 1.x support, timeline TBD
+**Future**: detekt maintainers committed to adding ktlint 1.x support,
+timeline TBD
 
 ## Compose-Friendly Rules
 
