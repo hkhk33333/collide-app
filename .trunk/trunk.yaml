@@ -52,6 +52,12 @@ lint:
     - detekt-gradle@SYSTEM
     - android-lint
   definitions:
+    - name: detekt-gradle
+      files: [kotlin]
+      commands:
+        - name: lint
+          # We disable configuration cache to prevent lock contention when running in parallel with other Gradle tasks in CI.
+          run: sh ${workspace}/gradlew detekt --info --continue --no-configuration-cache
     - name: android-lint
       files: [android-source]
       affects_cache:
@@ -64,7 +70,8 @@ lint:
         - gradle.properties
       commands:
         - name: lint
-          run: sh -c './gradlew lint && cp app/build/reports/lint-results-debug.sarif ${tmpfile}'
+          # Disable configuration cache to prevent CI lock contention when running in parallel
+          run: sh -c './gradlew lint --no-configuration-cache && cp app/build/reports/lint-results-debug.sarif ${tmpfile}'
           output: sarif
           read_output_from: tmp_file
           success_codes: [0]
