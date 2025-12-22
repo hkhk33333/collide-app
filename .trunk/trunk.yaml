@@ -76,8 +76,9 @@ lint:
     - linters: [shellcheck, shfmt]
       paths:
         - gradlew
-    # Ignore gitleaks for google-services.json because it contains firebase config
-    # which is standard to include in version control, no need of moving these keys.
+    # Ignore gitleaks for google-services.json because it contains standard Firebase
+    # configuration (like the API key and project ID) which is intended to be in
+    # version control for the app to function. This is standard practice for Firebase.
     - linters: [gitleaks]
       paths:
         - app/google-services.json
