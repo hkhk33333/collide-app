@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore last nightly commit
         id: restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: .github/.nightly_cache
           key: nightly-sha-
@@ -65,7 +65,7 @@ jobs:
 
       - name: Save new nightly commit
         if: steps.check.outputs.changed == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .github/.nightly_cache
           key: nightly-sha-${{ github.sha }}
@@ -238,7 +238,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Cache AVD
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.android/avd
@@ -294,7 +294,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Cache AVD (API ${{ matrix.api-level }})
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.android/avd
